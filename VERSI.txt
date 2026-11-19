@@ -1,0 +1,6 @@
+Analisa Teknikal - versi 19-11-2026 11:37 (750881f8957b)
+Program 1.3 | mesin 1.3.0 | ekstensi 1.10
+
+Pembaruan otomatis: setiap kali peluncur dibuka, versi terbaru diambil dari GitHub (lihat rilis.json).
+Daftar pantau dan bahasa tetap (tersimpan di pengaturan.json). Ekstensi memuat ulang dirinya sendiri.
+Pembaruan manual (tanpa internet di GitHub): salin isi zip baru ke folder ini, pilih Ganti/Replace semua.

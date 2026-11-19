@@ -1,0 +1,56 @@
+#!/bin/bash
+# Analisa Teknikal - klik dua kali: nyalakan panel lokal (port 8768), pindai portofolio
+# (baca-saja) atau daftar pantau, lalu buka panel di browser.
+# Port 8765-8767 dipakai program lain dan tidak disentuh.
+# Folder program = folder tempat Analisa Teknikal.app berada, jadi foldernya boleh dipindah atau disalin
+# ke Mac lain (mis. paket untuk orang lain). Cadangan: ~/Analisa Teknikal.
+FOLDER="$(cd "$(dirname "$0")/../../.." 2>/dev/null && pwd)"
+[ -f "$FOLDER/panel.py" ] || FOLDER="$HOME/Analisa Teknikal"
+PORT=8768
+export PATH="/opt/homebrew/bin:/usr/local/bin:/Library/Frameworks/Python.framework/Versions/Current/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+export PYTHONDONTWRITEBYTECODE=1
+pesan() { osascript -e "display alert \"Analisa Teknikal\" message \"$1\"" >/dev/null 2>&1; }
+
+[ -f "$FOLDER/panel.py" ] || { pesan "panel.py tidak ditemukan di $FOLDER."; exit 1; }
+
+# Python yang sama dengan tracker: utamakan yang sudah punya numpy + yfinance.
+PY=""
+for butuh in "numpy, yfinance" "numpy"; do
+  for calon in /opt/homebrew/bin/python3 /usr/local/bin/python3 \
+               /Library/Frameworks/Python.framework/Versions/Current/bin/python3 /usr/bin/python3; do
+    [ -x "$calon" ] && "$calon" -c "import $butuh" >/dev/null 2>&1 && { PY="$calon"; break 2; }
+  done
+done
+[ -n "$PY" ] || { pesan "Belum ada python3 dengan numpy. Pasang Python dari python.org, lalu di Terminal jalankan: pip3 install numpy yfinance matplotlib"; exit 1; }
+
+# Pembaruan otomatis dari GitHub (perbarui.py; rilis.json -> repo). Folder sumber (dengan buat_paket.py)
+# tidak pernah diperbarui. Tanpa internet: dilewati, program jalan dengan versi yang ada.
+mkdir -p "$FOLDER/output"
+[ -f "$FOLDER/perbarui.py" ] && "$PY" "$FOLDER/perbarui.py" >> "$FOLDER/output/perbarui.log" 2>&1
+
+# Panel lama di port ini dimatikan dulu supaya yang jalan selalu versi terbaru.
+for pid in $(lsof -ti tcp:$PORT -sTCP:LISTEN 2>/dev/null); do
+  ps -p "$pid" -o command= | grep -q "panel.py" && kill "$pid"
+done
+sleep 0.4
+
+mkdir -p "$FOLDER/output"
+cd "$FOLDER"
+nohup "$PY" panel.py --port $PORT --no-browser > "$FOLDER/output/panel.log" 2>&1 &
+
+for i in $(seq 1 120); do
+  if ST="$(curl -s "http://127.0.0.1:$PORT/api/status")" && [ -n "$ST" ]; then
+    # Belum ada portofolio maupun daftar pantau (mis. baru dipasang): langsung ke Cek aset, tanpa pindai.
+    if echo "$ST" | grep -q '"portofolio": "kosong"'; then
+      open "http://127.0.0.1:$PORT/"
+    else
+      curl -s -o /dev/null -X POST -H "X-Panel: 1" "http://127.0.0.1:$PORT/api/pindai"
+      open "http://127.0.0.1:$PORT/#portofolio"
+    fi
+    exit 0
+  fi
+  sleep 0.25
+done
+pesan "Panel tidak mau menyala. Keterangannya ada di $FOLDER/output/panel.log"
+open -e "$FOLDER/output/panel.log"
+exit 1

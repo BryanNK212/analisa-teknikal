@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Analisa Teknikal</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0b0b0c; color: #f2f2f3; font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; }
+  body.popup { width: 400px; height: 600px; }
+  iframe { border: 0; width: 100%; height: 100%; display: block; }
+  .off { padding: 28px 22px; }
+  .off h1 { font-size: 16px; font-weight: 600; margin: 14px 0 8px; letter-spacing: -.01em; }
+  .off p, .off li { color: #bcbcc2; font-size: 13px; line-height: 1.6; }
+  .off ol { padding-left: 18px; margin: 10px 0 18px; }
+  .off code { font: 12px ui-monospace, Menlo, monospace; color: #f2f2f3; background: #1b1b1e; padding: 1px 5px; border-radius: 4px; }
+  .off button:hover { background: #ffffff; border-color: #ffffff; }
+  .off button { height: 34px; padding: 0 14px; border-radius: 8px; border: 1px solid #ececee; background: #ececee; color: #0b0b0c; font-weight: 500; cursor: pointer; }
+  .off button:focus-visible { outline: 2px solid #ececee; outline-offset: 2px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+  <div class="off" id="off" hidden>
+    <svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6" fill="#1b1b1e" stroke="#34343a"/><path d="M7 15v-3M12 16V9M17 13v-3" stroke="#8e8e96" stroke-width="1.6" stroke-linecap="round"/><path d="M5 14l5-4 4 2 5-5" stroke="#6ea8fe" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <h1>Panel lokal belum jalan</h1>
+    <p>Ekstensi ini mengambil analisa dari program Analisa Teknikal yang berjalan di komputer ini.</p>
+    <ol>
+      <li>Buka folder <code>Analisa Teknikal</code> (Finder di Mac, File Explorer di Windows).</li>
+      <li>Klik dua kali <code>Analisa Teknikal.app</code> (Mac) atau <code>Analisa Teknikal (Windows).bat</code>.</li>
+      <li>Kembali ke sini dan klik Coba lagi.</li>
+    </ol>
+    <button id="coba" type="button">Coba lagi</button>
+    <p id="cekInfo" role="status" style="margin-top:10px;font-size:12px"></p>
+  </div>
+  <iframe id="panel" title="Analisa Teknikal" hidden></iframe>
+  <script src="sidepanel.js"></script>
+</body>
+</html>

@@ -1,0 +1,65 @@
+{
+  "manifest_version": 3,
+  "name": "Analisa Teknikal",
+  "version": "1.10",
+  "description": "Mendeteksi simbol (dan timeframe di TradingView) di halaman chart, menampilkan kartu analisa kecil, garis analisa di chart TradingView, dan analisa lengkap dari panel lokal Analisa Teknikal (Mac/Windows).",
+  "permissions": [
+    "sidePanel",
+    "storage",
+    "contextMenus"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:8768/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "action": {
+    "default_title": "Analisa Teknikal",
+    "default_icon": {
+      "16": "ikon16.png",
+      "32": "ikon32.png"
+    }
+  },
+  "icons": {
+    "16": "ikon16.png",
+    "32": "ikon32.png",
+    "48": "ikon48.png",
+    "128": "ikon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.tradingview.com/*",
+        "https://*.stockbit.com/*",
+        "https://*.binance.com/*",
+        "https://*.tokocrypto.com/*",
+        "https://*.indodax.com/*",
+        "https://*.bybit.com/*",
+        "https://*.okx.com/*",
+        "https://*.finance.yahoo.com/*",
+        "https://www.google.com/finance/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    },
+    {
+      "matches": [
+        "https://*.tradingview.com/*"
+      ],
+      "js": [
+        "lapisan.js",
+        "tv_utama.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false,
+      "world": "MAIN"
+    }
+  ]
+}

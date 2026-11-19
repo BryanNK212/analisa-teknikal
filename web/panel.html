@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analisa Teknikal</title>
+<link rel="preload" href="/web/fira-sans-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/web/fira-code-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/web/panel.css?v=__V__">
+<link rel="icon" href="/web/ikon.svg">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false" id="ikon-sprite">
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="i-sort" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M6 13l6 6 6-6"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 19h16"/><path d="M7 15v-4M12 16V7M17 14v-5"/></symbol>
+  <symbol id="i-trend-up" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></symbol>
+  <symbol id="i-trend-down" viewBox="0 0 24 24"><path d="M3 7l6 6 4-4 8 8"/><path d="M15 17h6v-6"/></symbol>
+  <symbol id="i-flat" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="M12 16h.01"/></symbol>
+  <symbol id="i-ok" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M6 12h12"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M6 12h12"/><path d="M12 6v12"/></symbol>
+  <symbol id="i-tinggi" viewBox="0 0 24 24"><path d="M12 4v16"/><path d="M8 8l4-4 4 4"/><path d="M8 16l4 4 4-4"/></symbol>
+  <symbol id="i-ext" viewBox="0 0 24 24"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></symbol>
+  <symbol id="i-penuh" viewBox="0 0 24 24"><path d="M4 9V4h5"/><path d="M20 9V4h-5"/><path d="M4 15v5h5"/><path d="M20 15v5h-5"/></symbol>
+</svg>
+
+<div class="shell">
+  <header class="bar">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="1" y="1" width="22" height="22" rx="6" fill="#1b1b1e" stroke="#34343a"/><path d="M7 15v-3M12 16V9M17 13v-3" stroke="#8e8e96" stroke-width="1.6" stroke-linecap="round"/><path d="M5 14l5-4 4 2 5-5" stroke="#6ea8fe" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Analisa Teknikal</span>
+    </div>
+    <nav class="nav" aria-label="Halaman" data-i18n-attr="aria-label">
+      <a class="tab" id="tabCek" href="#" data-view="cek" aria-current="page" data-i18n>Cek aset</a>
+      <a class="tab" id="tabPorto" href="#portofolio" data-view="porto" data-i18n>Portofolio</a>
+    </nav>
+    <label class="follow" id="ikutiWadah" data-i18n-attr="title" title="Ikuti simbol (dan timeframe, bila situsnya memberi) dari chart yang sedang dibuka: TradingView, Stockbit, Binance, Yahoo Finance, dll."><input type="checkbox" id="ikuti" role="switch" checked><span data-i18n>Ikuti chart</span></label>
+    <div class="seg bahasa" id="bahasaSeg" role="group" aria-label="Bahasa" data-i18n-attr="aria-label">
+      <button type="button" data-bahasa="id" aria-pressed="true" title="Bahasa Indonesia" lang="id">ID</button><button type="button" data-bahasa="en" aria-pressed="false" title="English" lang="en">EN</button>
+    </div>
+    <div class="status" id="status"><span class="dot" id="statusDot" aria-hidden="true"></span><span id="statusText" data-i18n>Menghubungkan…</span></div>
+    <button type="button" class="btn small penuh" id="btnPenuh" hidden title="Buka analisa ini di tab layar penuh" aria-label="Buka analisa ini di tab layar penuh" data-i18n-attr="title,aria-label"><svg class="ico" aria-hidden="true"><use href="#i-penuh"/></svg></button>
+  </header>
+
+  <!-- ============ CEK ASET ============ -->
+  <section id="viewCek" class="view" aria-label="Cari aset" data-i18n-attr="aria-label">
+    <div class="detected" id="detected" hidden><svg class="ico" aria-hidden="true"><use href="#i-chart"/></svg><span id="detectedText"></span><button type="button" class="btn small" id="btnIkuti" hidden data-i18n>Ikuti lagi</button></div>
+    <form class="toolbar" id="formCari" autocomplete="off" role="search">
+      <div class="search">
+        <svg class="ico" aria-hidden="true"><use href="#i-search"/></svg>
+        <input id="q" name="q" placeholder="Ticker: BBCA, NVDA, BTC, IHSG, IDX:TLKM" spellcheck="false" aria-label="Ticker" autocapitalize="characters">
+        <kbd aria-hidden="true">/</kbd>
+      </div>
+      <select class="field" id="pasar" aria-label="Pasar" data-i18n-attr="aria-label">
+        <option value="auto" data-i18n>Pasar otomatis</option>
+        <option value="idx" data-i18n>Saham IDX</option>
+        <option value="us" data-i18n>Saham/ETF AS</option>
+        <option value="crypto" data-i18n>Kripto</option>
+      </select>
+      <div class="seg" id="tfSeg" role="group" aria-label="Timeframe">
+        <button type="button" data-tf="5m" aria-pressed="false">5m</button><button type="button" data-tf="15m" aria-pressed="false">15m</button><button type="button" data-tf="1h" aria-pressed="false">1h</button><button type="button" data-tf="4h" aria-pressed="false">4h</button><button type="button" data-tf="1d" aria-pressed="true">1D</button><button type="button" data-tf="1wk" aria-pressed="false">1W</button><button type="button" data-tf="1mo" aria-pressed="false">1M</button>
+      </div>
+      <button class="btn primary" id="btnAnalisa" type="submit" data-i18n>Analisa</button>
+      <div class="recent" id="recent"></div>
+    </form>
+  </section>
+
+  <main class="work" id="work" aria-busy="false">
+    <div class="chartcol">
+      <div class="loadbar" aria-hidden="true"></div>
+      <div class="asset" id="assetHead" hidden>
+        <div class="idn">
+          <h1 class="sym" id="aSym"></h1>
+          <span class="tag" id="aTag"></span>
+          <span class="px" id="aPx"></span>
+          <span class="chg" id="aChg"></span>
+          <span class="tag live" id="aLive" hidden title="Candle terakhir belum selesai" data-i18n-attr="title" data-i18n>Berjalan</span>
+          <span class="name" id="aName"></span>
+        </div>
+        <div class="overlays" id="overlays" role="group" aria-label="Lapisan chart" data-i18n-attr="aria-label">
+          <button type="button" class="ov" data-k="ma" style="--c:#e0a64b" aria-pressed="true"><i></i>MA</button>
+          <button type="button" class="ov" data-k="bb" style="--c:#8e8e96" aria-pressed="false"><i></i>Bollinger</button>
+          <button type="button" class="ov" data-k="sr" style="--c:#26a69a" aria-pressed="true" title="Garis support (S) dan resistance (R)" data-i18n-attr="title"><i></i>S/R</button>
+          <button type="button" class="ov" data-k="rencana" style="--c:#e0a64b" aria-pressed="true" title="Garis rencana: area beli, stop / konfirmasi naik, target" data-i18n-attr="title"><i></i><span data-i18n>Rencana</span></button>
+          <button type="button" class="ov" data-k="tl" style="--c:#6ea8fe" aria-pressed="true"><i></i>Trendline</button>
+          <button type="button" class="ov" data-k="pat" style="--c:#f2f2f3" aria-pressed="true"><i></i><span data-i18n>Pola</span></button>
+          <button type="button" class="ov" data-k="vol" style="--c:#55555e" aria-pressed="true"><i></i>Volume</button>
+          <button type="button" class="ov tanya" id="btnArti" aria-expanded="false" aria-controls="arti" title="Arti garis di chart" aria-label="Arti garis di chart" data-i18n-attr="title,aria-label">?</button>
+        </div>
+      </div>
+      <div class="panes">
+        <div class="pane"><div class="legend" id="lgMain"></div><div class="chart" id="cMain"></div>
+          <div class="arti" id="arti" role="dialog" tabindex="-1" aria-label="Arti garis di chart" data-i18n-attr="aria-label" hidden>
+            <h3 data-i18n>Arti garis di chart</h3>
+            <dl>
+              <dt><i class="gs sr-s"></i>S1–S3 · R1–R3</dt><dd data-i18n>Support (lantai, hijau) dan resistance (atap, merah). Angka 1 = paling dekat dengan harga.</dd>
+              <dt><i class="gs zona"></i><span data-i18n>Area beli</span></dt><dd data-i18n>Rentang harga untuk membeli bila tren mendukung (rencana beli).</dd>
+              <dt><i class="gs kuning"></i>Stop</dt><dd data-i18n>Di bawah harga, untuk rencana beli: close di bawahnya = rencana beli batal (stop loss).</dd>
+              <dt><i class="gs kuning"></i><span data-i18n>Konfirmasi naik</span></dt><dd data-i18n>Di atas harga, saat tren turun: close di atasnya = tren turun dianggap selesai. Sebelum itu, belum saatnya beli atau menambah.</dd>
+              <dt><i class="gs hijau"></i>Target</dt><dd data-i18n>Sasaran harga rencana beli; area wajar mengamankan sebagian keuntungan.</dd>
+              <dt><i class="gs hijau"></i><span data-i18n>Menguat</span> / <span data-i18n>Melemah</span></dt><dd data-i18n>Saat arah belum jelas: close di atas Menguat = arah naik, close di bawah Melemah = arah turun.</dd>
+              <dt><i class="gs biru"></i>Trendline</dt><dd data-i18n>Garis miring yang menghubungkan titik-titik swing; putus-putus = sudah ditembus.</dd>
+              <dt><i class="gs putih"></i><span data-i18n>Pola</span></dt><dd data-i18n>Bentuk pola chart (mis. Double Top) dan Target pola: sasaran harga bila pola itu berlaku.</dd>
+            </dl>
+            <p class="faint" data-i18n>Semua garis dihitung ulang setiap analisa. "Close" = harga penutupan candle di timeframe ini, bukan harga sesaat.</p>
+          </div>
+          <div class="chartctl" id="chartCtl" role="group" aria-label="Kontrol chart" data-i18n-attr="aria-label" hidden>
+            <button type="button" data-aksi="perkecil" aria-label="Perkecil (lihat lebih banyak bar)" title="Perkecil" data-i18n-attr="aria-label,title"><svg class="ico sm" aria-hidden="true"><use href="#i-minus"/></svg></button>
+            <button type="button" data-aksi="perbesar" aria-label="Perbesar (lihat lebih sedikit bar)" title="Perbesar" data-i18n-attr="aria-label,title"><svg class="ico sm" aria-hidden="true"><use href="#i-plus"/></svg></button>
+            <button type="button" data-aksi="awal" aria-label="Kembali ke tampilan awal" title="Tampilan awal" data-i18n-attr="aria-label,title"><svg class="ico sm" aria-hidden="true"><use href="#i-refresh"/></svg></button>
+            <button type="button" data-aksi="tinggi" class="hanya-embed" aria-pressed="false" aria-label="Tinggikan chart" title="Tinggikan chart" data-i18n-attr="aria-label,title"><svg class="ico sm" aria-hidden="true"><use href="#i-tinggi"/></svg></button>
+          </div>
+        </div>
+        <div class="pane sub"><div class="legend" id="lgRsi"></div><div class="chart" id="cRsi"></div></div>
+        <div class="pane sub"><div class="legend" id="lgMacd"></div><div class="chart" id="cMacd"></div></div>
+        <div class="state" id="stateChart"></div>
+      </div>
+    </div>
+
+    <aside class="side" id="side" aria-label="Hasil analisa" data-i18n-attr="aria-label">
+      <section class="sec start" id="secStart"></section>
+      <div class="skel" id="skel" hidden aria-hidden="true"><i class="besar"></i><i></i><i class="pendek"></i><i class="jeda"></i><i></i><i></i><i></i><i class="pendek"></i><i class="jeda"></i><i></i><i></i><i class="pendek"></i></div>
+      <div id="hasil" hidden>
+        <section class="sec vonis" id="secVerdict" aria-label="Ringkasan skor" data-i18n-attr="aria-label">
+          <div class="verdict">
+            <div class="score" id="vScore"></div>
+            <div><div class="label" id="vLabel"></div><div class="trend" id="vTrend"></div></div>
+          </div>
+          <p class="konf" id="vKonf" hidden></p>
+          <p class="live-note" id="vLive" hidden></p>
+        </section>
+        <div class="tabs" id="tabs" role="tablist" aria-label="Bagian analisa" data-i18n-attr="aria-label">
+          <button type="button" role="tab" id="tab-ringkas" aria-controls="tp-ringkas" aria-selected="true" data-i18n>Ringkasan</button>
+          <button type="button" role="tab" id="tab-level" aria-controls="tp-level" aria-selected="false" tabindex="-1" data-i18n="Level &amp; pola">Level &amp; pola</button>
+          <button type="button" role="tab" id="tab-sinyal" aria-controls="tp-sinyal" aria-selected="false" tabindex="-1" data-i18n>Sinyal</button>
+        </div>
+        <div class="tabpanel" id="tp-ringkas" role="tabpanel" aria-labelledby="tab-ringkas" tabindex="0">
+          <section class="sec aksi" id="secAksi" hidden><h2><span data-i18n>Rencana tindakan</span> <span class="pill" id="aksiPill"></span></h2><div id="aksi"></div></section>
+          <section class="sec" id="secNarasi" hidden><h2 data-i18n="Analisa tertulis">Analisa</h2><div class="narasi" id="narasi"></div></section>
+          <section class="sec" id="secFlag" hidden><h2 data-i18n>Perlu diperhatikan</h2><ul class="items" id="flags"></ul></section>
+          <section class="sec" id="secTf" hidden><h2 data-i18n>Per timeframe</h2>
+            <table class="mtf" id="vMtf" aria-label="Skor per timeframe" data-i18n-attr="aria-label"></table>
+            <div id="vRs"></div>
+            <div class="riw" id="vRiwayat" hidden></div>
+          </section>
+        </div>
+        <div class="tabpanel" id="tp-level" role="tabpanel" aria-labelledby="tab-level" tabindex="0" hidden>
+          <section class="sec" id="secPlan" hidden><h2><span data-i18n>Rencana</span> <span class="pill" id="planPill"></span></h2><dl class="kv" id="plan"></dl><p class="note" id="planNote"></p></section>
+          <section class="sec" id="secLv" hidden><h2>Support &amp; resistance</h2><table class="levels" id="levels"></table></section>
+          <section class="sec" id="secPat" hidden><h2 data-i18n>Pola</h2><ul class="items" id="pats"></ul></section>
+          <p class="kosong" id="kosongPola" hidden data-i18n>Tidak ada pola chart atau candlestick yang menonjol saat ini.</p>
+        </div>
+        <div class="tabpanel" id="tp-sinyal" role="tabpanel" aria-labelledby="tab-sinyal" tabindex="0" hidden>
+          <section class="sec komp" id="komposisi" hidden><h2><span data-i18n>Komposisi skor</span> <span class="muted" data-i18n>poin skor · kiri bearish, kanan bullish</span></h2><ul id="kList"></ul><p class="note" id="kCatatan" hidden data-i18n>Skor dibatasi ±49 selama tren 50 bar masih berlawanan arah.</p></section>
+          <section class="sec" id="secSig" hidden><h2><span data-i18n>Sinyal</span> <span class="muted" data-i18n>poin skor</span></h2><div id="sigs"></div></section>
+          <section class="sec" id="secInd" hidden><h2 data-i18n>Indikator</h2><div class="grid2" id="inds"></div></section>
+        </div>
+      </div>
+      <div class="disclaimer"><span data-i18n>Analisa otomatis, bukan rekomendasi investasi. Harga: Yahoo Finance / Binance. Chart:</span> <a href="https://www.tradingview.com/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a>.</div>
+    </aside>
+  </main>
+
+  <!-- ============ PORTOFOLIO ============ -->
+  <main class="porto" id="viewPorto" hidden></main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<div class="sr-only" id="sr" role="status" aria-live="polite" aria-atomic="true"></div>
+
+<script src="/web/bahasa.js?v=__V__"></script>
+<script src="/web/lw.js?v=__V__"></script>
+<script src="/web/lapisan.js?v=__V__"></script>
+<script src="/web/portofolio.js?v=__V__"></script>
+<script src="/web/panel.js?v=__V__"></script>
+</body>
+</html>

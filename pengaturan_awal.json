@@ -1,0 +1,8 @@
+{
+  "_petunjuk": "Daftar pantau bisa diisi dari tab Daftar pantau di panel. 'tambahan_pantau' = ticker format Yahoo (mis. BBCA.JK, NVDA, BTC-USD). 'folder_portfolio' kosong = mode analisa saja, tanpa membaca portofolio.",
+  "folder_portfolio": "",
+  "tambahan_pantau": [],
+  "periode": "2y",
+  "kurs_cadangan": 17500,
+  "bahasa": "id"
+}
