@@ -1,6 +1,6 @@
 {
   "_petunjuk": "Sumber pembaruan otomatis. repo = 'pemilik/nama-repo' di GitHub; kosong = pembaruan otomatis mati. token hanya untuk repo privat (token baca-saja).",
-  "repo": "",
+  "repo": "BryanNK212/analisa-teknikal",
   "cabang": "main",
   "token": ""
 }
