@@ -139,6 +139,8 @@ def pasar_yahoo(code: str) -> str:
         return "crypto"
     if code.startswith("^") or code.endswith("=X") or code.endswith("=F") or code.startswith("DX-Y"):
         return "lain"
+    if re.search(r"\.[A-Z]{1,2}$", code) and not re.search(r"\.[AB]$", code):
+        return "lain"  # saham bursa luar (7203.T, 0700.HK, SAP.DE, ...); BRK.A/BRK.B tetap saham AS
     return "us"
 
 # Nama pendek yang biasa diketik tanpa awalan bursa.
@@ -155,6 +157,8 @@ def urai_simbol(q: str, pasar: str | None) -> tuple[list[tuple[str, str, str]], 
     q = (q or "").strip().upper().replace(" ", "")
     if not q:
         raise ValueError("Isi ticker dulu, mis. BBCA, NVDA, BTC, atau IDX:TLKM.")
+    if not re.fullmatch(r"[A-Z0-9.^=:_/!&-]{1,40}", q):
+        raise ValueError("Ticker tidak valid. Contoh: BBCA, NVDA, BTC, atau IDX:TLKM.")
     pasar = None if pasar in (None, "", "auto") else pasar
     if ":" in q and pasar is None:
         bursa, sym = q.split(":", 1)
@@ -173,7 +177,8 @@ def urai_simbol(q: str, pasar: str | None) -> tuple[list[tuple[str, str, str]], 
         if bursa in BURSA_FX and re.fullmatch(r"[A-Z]{6}", sym):
             return [("lain", "yahoo", f"{sym}=X")], sym
         if bursa in AKHIRAN:
-            return [("us", "yahoo", sym + AKHIRAN[bursa])], sym
+            # Bursa di luar IDX/AS (Tokyo, Hong Kong, London, ...): harga tanpa simbol dolar, tanpa jam/acuan New York.
+            return [("lain", "yahoo", sym + AKHIRAN[bursa])], sym
         q = sym
     if pasar is None and q in INDEKS_PENDEK:
         kode = INDEKS_PENDEK[q]
@@ -225,6 +230,9 @@ def tf_dari_tradingview(iv: str | None) -> tuple[str, str | None]:
 _CACHE: dict[tuple[str, str], tuple[float, dict, dict]] = {}
 _KUNCI = threading.Lock()
 _SEDANG: dict[tuple[str, str], threading.Lock] = {}  # satu pengambilan per (kode, timeframe) pada satu waktu
+_GAGAL: dict[tuple[str, str], float] = {}  # kandidat yang baru gagal (mis. NVDA.JK): dilewati 10 menit bila masih ada kandidat lain
+GAGAL_TTL = 600
+CACHE_MAKS = 200
 
 
 def _kunci_ambil(kunci: tuple[str, str]) -> threading.Lock:
@@ -238,16 +246,20 @@ def _ttl(tf: str) -> int:
 
 def tarik(kandidat: list[tuple[str, str, str]], tf: str) -> tuple[str, str, dict, dict]:
     errors = []
-    for mkt, prov, code in kandidat:
+    for nomor, (mkt, prov, code) in enumerate(kandidat):
         kunci = (code, tf)
         with _KUNCI:
             ada = _CACHE.get(kunci)
+            gagal = _GAGAL.get(kunci)
+        if gagal and time.time() - gagal < GAGAL_TTL and nomor < len(kandidat) - 1 and not ada:
+            errors.append(f"{code}: baru saja tidak ditemukan")
+            continue
         if ada and time.time() - ada[0] < _ttl(tf):
             return mkt, code, ada[1], ada[2]
         if OFFLINE:
             b = tk.muat_cache(code)
             if b is not None and tf in ("1wk", "1mo"):
-                b = te.resample(b, tf)
+                b = te.resample(b, tf, mkt)
             elif tf != "1d":
                 b = None
             if b is not None:
@@ -267,9 +279,15 @@ def tarik(kandidat: list[tuple[str, str, str]], tf: str) -> tuple[str, str, dict
                 b, meta = _yfinance(code, tf, exc)
                 if b is None:
                     errors.append(f"{code}: {exc}")
+                    with _KUNCI:
+                        _GAGAL[kunci] = time.time()
                     continue
             with _KUNCI:
                 _CACHE[kunci] = (time.time(), b, meta)
+                _GAGAL.pop(kunci, None)
+                if len(_CACHE) > CACHE_MAKS:  # buang yang paling lama supaya memori tidak tumbuh terus
+                    for k in sorted(_CACHE, key=lambda x: _CACHE[x][0])[:len(_CACHE) - CACHE_MAKS]:
+                        _CACHE.pop(k, None)
         return mkt, code, b, meta
     kode = ", ".join(k[2] for k in kandidat)
     if OFFLINE:
@@ -496,6 +514,35 @@ def riwayat(q: str, tf: str, pasar: str | None, bahasa: str = "id") -> dict:
     return {"ok": True, "kode": code, "tf": tf, "titik": [[int(t), s] for t, s in titik], "skor": skor, "kalimat": kalimat, "bahasa": bahasa}
 
 
+def semua_tf(q: str, pasar: str | None, bahasa: str = "id") -> dict:
+    """Kesimpulan semua timeframe (1H, 4H, 1D, 1W, 1M) + skor gabungan + saran. Hanya dari data harga.
+    Tiap timeframe ditarik sama persis seperti saat timeframe itu dibuka di panel (skornya sama), paralel dan lewat
+    cache panel, jadi berpindah timeframe sesudahnya langsung tampil."""
+    kandidat, _ = urai_simbol(q, pasar)
+    mkt, code, _, _ = tarik(kandidat, "1d")
+    prov = next((pv for m_, pv, c_ in kandidat if c_ == code), "yahoo")
+    satu_kandidat = [(mkt, prov, code)]
+
+    def hitung(tf):
+        try:
+            _, _, b, _ = tarik(satu_kandidat, tf)
+        except Exception:  # noqa: BLE001 - mis. tanpa data per jam / mode offline: timeframe itu dilewati
+            return tf, None
+        b = _potong(b, MAKS_BAR)
+        if len(b["c"]) < 30:
+            return tf, None
+        jalan = tk.fraksi_berjalan(code, mkt, b["t"][-1], tf)
+        return tf, te.analyze(b, symbol=code, market=mkt, tf=tf, live_frac=jalan)
+
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=5) as ex:
+        hasil = {tf: r for tf, r in ex.map(hitung, ws.URUT_TF) if r is not None}
+    if "1d" not in hasil:
+        raise LookupError(f"Data {code} terlalu sedikit untuk kesimpulan semua timeframe.")
+    k = bh.kesimpulan_semua_tf_en(hasil) if bahasa == "en" else ws.kesimpulan_semua_tf(hasil)
+    return tk._bersihkan({"ok": True, "kode": code, "pasar": mkt, "bahasa": bahasa, **k})
+
+
 def analisa(q: str, tf: str, pasar: str | None, ringkas: bool = False, bahasa: str = "id") -> dict:
     """bahasa="en": semua teks (label, tanda, analisa tertulis, sinyal, rencana, garis) dalam bahasa Inggris; angkanya sama."""
     en = bahasa == "en"
@@ -512,7 +559,7 @@ def analisa(q: str, tf: str, pasar: str | None, ringkas: bool = False, bahasa: s
         raise LookupError(f"Data {code} terlalu sedikit ({len(b['c'])} bar) untuk timeframe {tf}.")
     nama = tampil if mkt != "crypto" else re.sub(r"(USDT|-USD)$", "", code)
     berjalan = tk.fraksi_berjalan(code, mkt, b["t"][-1], tf)
-    r = te.analyze_mtf(te.auto_mtf(b, tf), symbol=tk.nama_tampil(code) if code.endswith((".JK", "-USD")) else nama,
+    r = te.analyze_mtf(te.auto_mtf(b, tf, mkt), symbol=tk.nama_tampil(code) if code.endswith((".JK", "-USD")) else nama,
                        market=mkt, primary=tf, include_series=not ringkas, meta=meta, live_frac=berjalan)
     # Analisa murni dari data harga. Sengaja tidak membaca folder portofolio atau arsip pindai portofolio
     # (posisi, avg, P/L, label Baru) supaya Cek aset, panel samping, dan kartu ekstensi terpisah dari portofolio.
@@ -557,6 +604,7 @@ def analisa(q: str, tf: str, pasar: str | None, ringkas: bool = False, bahasa: s
 # PINDAI PORTOFOLIO (latar belakang)
 # ==================================================================
 
+_KUNCI_PINDAI = threading.Lock()
 PINDAI = {"berjalan": False, "mulai": None, "selesai": None, "ok": None, "pesan": "", "fase": None, "grafik": 0}
 
 
@@ -600,6 +648,8 @@ class Penangan(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(isi)))
         self.send_header("Cache-Control", "max-age=300" if cache else "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
+        # Hanya panel ini sendiri dan panel samping ekstensi yang boleh memuatnya dalam iframe.
+        self.send_header("Content-Security-Policy", "frame-ancestors 'self' chrome-extension:")
         self.end_headers()
         self.wfile.write(isi)
 
@@ -644,6 +694,8 @@ class Penangan(BaseHTTPRequestHandler):
                 return self._json(analisa(qs.get("q", ""), qs.get("tf", "1d"), qs.get("pasar"), qs.get("ringkas") == "1", bahasa))
             if u.path == "/api/riwayat":
                 return self._json(riwayat(qs.get("q", ""), qs.get("tf", "1d"), qs.get("pasar"), bahasa))
+            if u.path == "/api/semua_tf":
+                return self._json(semua_tf(qs.get("q", ""), qs.get("pasar"), bahasa))
             if u.path in ("/api/portofolio", "/api/pindai") or u.path.startswith("/chart/"):
                 if self._dari_analisa():
                     return self._kirim(403, b"data portofolio tidak tersedia di mode analisa", "text/plain")
@@ -697,9 +749,11 @@ class Penangan(BaseHTTPRequestHandler):
                 return self._json({"ok": False, "pesan": "daftar tidak valid"}, 400)
             return self._json(atur_pantau(daftar))
         if u.path == "/api/pindai":
-            if not PINDAI["berjalan"]:
-                threading.Thread(target=_pindai, daemon=True).start()
-                time.sleep(0.05)
+            with _KUNCI_PINDAI:  # dua klik beruntun tidak boleh memicu dua pemindaian sekaligus
+                if not PINDAI["berjalan"]:
+                    PINDAI.update(berjalan=True, fase="harga")
+                    threading.Thread(target=_pindai, daemon=True).start()
+            time.sleep(0.05)
             return self._json({"ok": True, **PINDAI})
         return self._kirim(404, b"not found", "text/plain")
 

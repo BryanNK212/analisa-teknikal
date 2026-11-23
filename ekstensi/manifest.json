@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Analisa Teknikal",
-  "version": "1.10",
+  "version": "1.11",
   "description": "Mendeteksi simbol (dan timeframe di TradingView) di halaman chart, menampilkan kartu analisa kecil, garis analisa di chart TradingView, dan analisa lengkap dari panel lokal Analisa Teknikal (Mac/Windows).",
   "permissions": [
     "sidePanel",

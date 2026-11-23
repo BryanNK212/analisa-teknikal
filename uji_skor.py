@@ -17,6 +17,10 @@ Sejak mesin 1.3.0 ada dua uji tambahan dari perhitungan yang sama:
 - Rencana: saat rencana "Area beli" aktif dan harga di dalam areanya, mana yang lebih dulu terjadi dalam 40 bar:
   target 1 tersentuh atau close di bawah Stop. Saat rencana "Belum saatnya beli": mana lebih dulu dalam 40 bar,
   harga turun ke target turun 1 atau close di atas Konfirmasi naik.
+- Sejak 1.4.0 rencana beli juga dihitung hasilnya dalam R (1R = jarak harga ke Stop): masuk di close hari itu,
+  keluar di target 1, di close yang menembus Stop (bisa lebih dalam dari −1R bila ada gap), atau di close bar ke-40.
+  Rata-rata R ini lebih jujur daripada persentase "target dulu" saja, karena rugi saat kena stop sering > 1R.
+- Kesimpulan otomatis per pasar butuh cukup banyak aset (lihat ASET_MIN di tampilan).
 
 Keterbatasan (ditulis juga di hasil): sampel hanya aset yang pernah dipindai (bias pilihan), hari-hari saling
 tumpang tindih (return 20 hari berurutan tidak independen), dan tanpa biaya transaksi. Anggap ini gambaran kasar,
@@ -78,7 +82,7 @@ def _satu(nama_file: str):
 
 
 def _hasil_rencana(a: dict, c, hi, lo, i: int):
-    """("beli", "target"|"stop"|"belum", rr_rendah) · ("hindari", "turun"|"naik"|"belum", None) · None."""
+    """("beli", "target"|"stop"|"belum", rr_rendah, hasil_R) · ("hindari", "turun"|"naik"|"belum", None, None) · None."""
     p, harga = a["plan"], float(c[i])
     akhir = min(len(c), i + 1 + HORISON_RENCANA)
     penuh = akhir - (i + 1) >= HORISON_RENCANA
@@ -89,20 +93,23 @@ def _hasil_rencana(a: dict, c, hi, lo, i: int):
                 return None  # hanya hari ketika harga memang di area beli
             stop, target = float(p["stop_loss"]), float(p["targets"][0])
             rr1 = (p.get("rr") or [None])[0]
+            rendah = bool(rr1 is not None and rr1 < 1)
+            risiko = harga - stop
+            R = (lambda keluar: (keluar - harga) / risiko) if risiko > 0 else (lambda keluar: None)
             for j in range(i + 1, akhir):
                 if c[j] < stop:
-                    return ("beli", "stop", bool(rr1 is not None and rr1 < 1))
+                    return ("beli", "stop", rendah, R(float(c[j])))
                 if hi[j] >= target:
-                    return ("beli", "target", bool(rr1 is not None and rr1 < 1))
-            return ("beli", "belum", bool(rr1 is not None and rr1 < 1)) if penuh else None
+                    return ("beli", "target", rendah, R(target))
+            return ("beli", "belum", rendah, R(float(c[akhir - 1]))) if penuh else None
         if p["bias"] == "short" and p["targets"]:
             naik, turun = float(p["stop_loss"]), float(p["targets"][0])
             for j in range(i + 1, akhir):
                 if c[j] > naik:
-                    return ("hindari", "naik", None)
+                    return ("hindari", "naik", None, None)
                 if lo[j] <= turun:
-                    return ("hindari", "turun", None)
-            return ("hindari", "belum", None) if penuh else None
+                    return ("hindari", "turun", None, None)
+            return ("hindari", "belum", None, None) if penuh else None
     except (KeyError, TypeError, ValueError, IndexError):
         return None
     return None
@@ -126,10 +133,19 @@ def _uji_kategori(data: list, dasar: float) -> list[dict]:
 
 def _uji_rencana(data: list) -> dict:
     def hitung(pilih, kunci):
-        x = [r[5][1] for r in data if r[5] and pilih(r[5])]
+        h = [r[5] for r in data if r[5] and pilih(r[5])]
+        x = [y[1] for y in h]
         if not x:
             return {"n": 0}
-        return {"n": len(x), **{k: 100 * x.count(k) / len(x) for k in kunci}}
+        out = {"n": len(x), **{k: 100 * x.count(k) / len(x) for k in kunci}}
+        rs = [y[3] for y in h if y[3] is not None]
+        if rs:
+            out["rata_r"] = sum(rs) / len(rs)  # hasil rata-rata per rencana, dalam R (sebelum biaya)
+            out["median_r"] = sorted(rs)[len(rs) // 2]
+            kena = [y[3] for y in h if y[1] == "stop" and y[3] is not None]
+            if kena:
+                out["rugi_stop_r"] = sum(kena) / len(kena)  # rata-rata rugi saat kena stop (−1 = tepat di stop)
+        return out
     return {"beli": hitung(lambda h: h[0] == "beli", ("target", "stop", "belum")),
             "beli_rr_ok": hitung(lambda h: h[0] == "beli" and not h[2], ("target", "stop", "belum")),
             "beli_rr_rendah": hitung(lambda h: h[0] == "beli" and h[2], ("target", "stop", "belum")),
@@ -190,7 +206,8 @@ def main() -> None:
         print(" kategori (20 hari, bullish − bearish): " + " · ".join(f"{k['kategori']} {k['beda']:+.1f}" for k in blok["kategori"] if "beda" in k))
         rb, rh = blok["rencana"]["beli"], blok["rencana"]["hindari"]
         if rb["n"]:
-            print(f" rencana beli (n={rb['n']}): target 1 dulu {rb['target']:.0f}% · stop dulu {rb['stop']:.0f}% · belum {rb['belum']:.0f}%")
+            print(f" rencana beli (n={rb['n']}): target 1 dulu {rb['target']:.0f}% · stop dulu {rb['stop']:.0f}% · belum {rb['belum']:.0f}%"
+                  + (f" · rata-rata {rb['rata_r']:+.2f}R · rugi saat kena stop {rb.get('rugi_stop_r', 0):+.2f}R" if "rata_r" in rb else ""))
         if rh["n"]:
             print(f" belum saatnya beli (n={rh['n']}): turun ke target turun 1 {rh['turun']:.0f}% · konfirmasi naik dulu {rh['naik']:.0f}% · belum {rh['belum']:.0f}%")
 

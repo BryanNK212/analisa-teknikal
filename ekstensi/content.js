@@ -81,7 +81,7 @@
   function gayaBinance(bursa) {
     return (u) => {
       // /en/trade/BTC_USDT?type=spot · /id/trade/ETH_IDR · /en/futures/BTCUSDT
-      let m = u.pathname.match(/\/trade\/([A-Z0-9]{2,15})_([A-Z0-9]{2,10})(?:[/?#]|$)/i);
+      let m = u.pathname.match(/\/trade\/([A-Z0-9]{1,15})_([A-Z0-9]{2,10})(?:[/?#]|$)/i);
       if (m) return pasangan(bursa, m[1], m[2]);
       m = u.pathname.match(/\/futures\/([A-Z0-9]{4,20}?)(?:_\d+)?(?:[/?#]|$)/i);
       return m ? { q: `${bursa}:${m[1].toUpperCase()}` } : null;

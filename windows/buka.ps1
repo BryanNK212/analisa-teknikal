@@ -30,6 +30,12 @@ if (-not $PyExe) {
   exit 1
 }
 
+# Panel lama di port ini dimatikan dulu (sebelum pembaruan, supaya berkasnya tidak terkunci; hanya proses panel.py ini).
+Get-CimInstance Win32_Process -Filter "Name like 'python%'" -ErrorAction SilentlyContinue |
+  Where-Object { $_.CommandLine -like "*panel.py*--port $Port*" } |
+  ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+Start-Sleep -Milliseconds 400
+
 # Pembaruan otomatis dari GitHub (perbarui.py; rilis.json -> repo). Tanpa internet: dilewati.
 if (Test-Path (Join-Path $Folder "perbarui.py")) {
   $env:PYTHONDONTWRITEBYTECODE = "1"
@@ -40,12 +46,6 @@ if (Test-Path (Join-Path $Folder "perbarui.py")) {
       -RedirectStandardOutput (Join-Path $Folder "output\perbarui_terakhir.log") -RedirectStandardError (Join-Path $Folder "output\perbarui_galat.log")
   } catch { }
 }
-
-# Panel lama di port ini dimatikan dulu supaya yang jalan selalu versi terbaru (hanya proses panel.py ini).
-Get-CimInstance Win32_Process -Filter "Name like 'python%'" -ErrorAction SilentlyContinue |
-  Where-Object { $_.CommandLine -like "*panel.py*--port $Port*" } |
-  ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-Start-Sleep -Milliseconds 400
 
 $Out = Join-Path $Folder "output"
 New-Item -ItemType Directory -Force -Path $Out | Out-Null

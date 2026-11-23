@@ -7,7 +7,8 @@ Analisa teknikal otomatis untuk **saham IDX, saham AS, kripto, indeks, dan forex
 ## Isinya
 
 1. **Panel di browser** (`http://127.0.0.1:8768`)
-   - **Cek aset**: ketik ticker apa saja, pilih timeframe 5m, 15m, 1h, 4h, 1D, 1W, atau 1M.
+   - **Cek aset**: ketik ticker apa saja, pilih timeframe 5m, 15m, 30m, 1h, 4h, 1D, 1W, atau 1M.
+   - **Kesimpulan semua timeframe**: di tab Ringkasan, skor dan rencana 1H, 4H, 1D, 1W, 1M berdampingan, satu **skor gabungan** (rata-rata tertimbang; 1D dan 1W paling berat), kesimpulan arah jangka pendek/menengah/panjang, dan saran langkah dengan level dari timeframe 1D.
    - **Daftar pantau**: ticker pilihanmu sendiri, dianalisa sekaligus dalam satu tabel.
 2. **Ekstensi browser** (Chrome, Edge, Brave, Arc) untuk TradingView, Stockbit, Binance, Tokocrypto, Indodax, Bybit, OKX, Yahoo Finance, dan Google Finance. Saat kamu membuka chart, ekstensi membaca simbolnya, lalu menampilkan kartu skor kecil di halaman itu dan analisa lengkap di panel samping. Di TradingView, garis support/resistance, rencana, trendline, dan pola juga digambar langsung di atas chart.
 3. **Tombol ID | EN** untuk mengganti bahasa di semua tampilan sekaligus. Pilihan bahasa diingat.

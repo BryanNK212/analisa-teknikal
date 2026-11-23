@@ -179,6 +179,18 @@ select.field:hover { border-color: #46464e; }
 .verdict .label { font-size: var(--fs-lg); font-weight: 600; line-height: 1.25; }
 .verdict .trend { color: var(--text-2); font-size: var(--fs-md); margin-top: var(--s1); }
 .konf { margin: var(--s4) 0 0; font-size: var(--fs-sm); color: var(--text-2); }
+/* Skor gabungan semua timeframe (di bawah skor timeframe aktif) */
+.gab { margin: var(--s3) 0 0; font-size: var(--fs-sm); color: var(--text-2); display: flex; align-items: baseline; gap: var(--s2); flex-wrap: wrap; }
+.gab .num { font: 600 var(--fs-md) var(--mono); }
+/* Kesimpulan semua timeframe */
+.semua .mtf .ra { color: var(--text-2); font-size: var(--fs-sm); text-align: right; }
+.semua .mtf tr.aktif td { background: rgba(255, 255, 255, .04); }
+.semua .mtf tr.aktif td:first-child { box-shadow: inset 2px 0 0 var(--text-3); padding-left: 6px; }
+.semua .kes { margin: var(--s4) 0 0; line-height: 1.6; }
+.semua h3 { margin: var(--s4) 0 var(--s2); font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); }
+.semua ul.saran { margin: 0; padding-left: 1.1em; line-height: 1.6; }
+.semua ul.saran li { margin: 0 0 var(--s2); }
+.semua ul.saran li.risiko { color: var(--text-3); }
 .mtf { width: 100%; border-collapse: collapse; font-size: var(--fs-md); }
 .mtf td { padding: 6px 0; border-top: 1px solid var(--line); }
 .mtf .tf { width: 34px; font: 500 var(--fs-sm) var(--mono); color: var(--text-3); }

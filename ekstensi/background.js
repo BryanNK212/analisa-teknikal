@@ -1,6 +1,26 @@
 // Analisa Teknikal — service worker: simpan deteksi per tab, beri badge skor, kirim kartu ke halaman, teruskan ke side panel.
 const SERVER = "http://127.0.0.1:8768";
 const status = {}; // tabId -> { q, iv, ivLabel, tf, situs, catatan, skor }
+// Service worker MV3 dimatikan Chrome setelah ±30 detik diam, dan isi `status` ikut hilang. Sejak 1.11 disimpan juga
+// di chrome.storage.session (hilang saat browser ditutup) dan dipulihkan saat service worker bangun lagi.
+const siap = (chrome.storage.session ? chrome.storage.session.get("status") : Promise.resolve({}))
+  .then((v) => { Object.entries((v && v.status) || {}).forEach(([id, s]) => { if (!status[id]) status[id] = s; }); })
+  .catch(() => {});
+let timerSimpan = 0;
+function simpanStatus() {
+  if (!chrome.storage.session) return;
+  clearTimeout(timerSimpan);
+  timerSimpan = setTimeout(() => chrome.storage.session.set({ status }).catch(() => {}), 200);
+}
+async function pastikanStatus(tabId) {
+  await siap;
+  if (status[tabId] && status[tabId].q) return status[tabId];
+  try {
+    const d = await chrome.tabs.sendMessage(tabId, { type: "minta" });
+    if (d && d.q) { status[tabId] = { ...d, tf: tfDari(d.iv) }; simpanStatus(); }
+  } catch { /* tab tanpa content script */ }
+  return status[tabId];
+}
 
 // Bahasa (id/en) ditentukan di panel dan disimpan di server; ekstensi mengetahuinya dari jawaban /api/analisa.
 // Disimpan juga di chrome.storage supaya halaman "panel belum jalan" dan menu klik kanan ikut bahasanya.
@@ -129,6 +149,7 @@ async function badge(tabId) {
     return;
   }
   s.skor = d.skor;
+  simpanStatus();
   // Warna badge cukup gelap supaya teks putih tetap ≥ 4.5:1
   const warna = d.skor >= 20 ? "#1f7a71" : d.skor <= -20 ? "#c2403d" : "#946b1f";
   chrome.action.setBadgeBackgroundColor({ tabId, color: warna });
@@ -159,25 +180,27 @@ chrome.runtime.onMessage.addListener((m, sender, balas) => {
   if (m.type === "tv" && sender.tab) {
     const tabId = sender.tab.id;
     status[tabId] = { q: m.q, iv: m.iv, ivLabel: m.ivLabel, tf: tfDari(m.iv), situs: m.situs || "TradingView", catatan: m.catatan || "" };
+    simpanStatus();
     teruskan(tabId);
     clearTimeout(timer[tabId]);
     timer[tabId] = setTimeout(() => badge(tabId), 120);  // jeda singkat: cukup untuk menyatukan perubahan simbol + interval yang datang beruntun
   } else if (m.type === "segarkan" && sender.tab) {
-    clearTimeout(timer[sender.tab.id]);
-    badge(sender.tab.id);
+    const tabId = sender.tab.id;
+    clearTimeout(timer[tabId]);
+    pastikanStatus(tabId).then(() => badge(tabId));
   } else if (m.type === "bahasa") {
     // Bahasa diganti di panel samping: segarkan badge, kartu, dan garis di semua tab chart yang sedang dipantau.
     catatBahasa(m.nilai);
-    Object.keys(status).forEach((id) => { if (status[id] && status[id].q) badge(+id); });
+    siap.then(() => Object.keys(status).forEach((id) => { if (status[id] && status[id].q) badge(+id); }));
   } else if (m.type === "buka-panel" && sender.tab) {
     bukaPanel(sender.tab, m.q, m.tf);
   } else if (m.type === "state") {
-    chrome.tabs.query({ active: true, windowId: m.windowId }).then(([tab]) => {
+    siap.then(() => chrome.tabs.query({ active: true, windowId: m.windowId })).then(([tab]) => {
       if (!tab) return balas({ q: "" });
       const s = status[tab.id];
       if (s) return balas({ tabId: tab.id, ...s });
       chrome.tabs.sendMessage(tab.id, { type: "minta" }).then((d) => {
-        if (d && d.q) { status[tab.id] = { ...d, tf: tfDari(d.iv) }; balas({ tabId: tab.id, ...status[tab.id] }); }
+        if (d && d.q) { status[tab.id] = { ...d, tf: tfDari(d.iv) }; simpanStatus(); balas({ tabId: tab.id, ...status[tab.id] }); }
         else balas({ q: "" });
       }).catch(() => balas({ q: "" }));
     });
@@ -185,5 +208,5 @@ chrome.runtime.onMessage.addListener((m, sender, balas) => {
   }
 });
 
-chrome.tabs.onActivated.addListener(({ tabId }) => teruskan(tabId));
-chrome.tabs.onRemoved.addListener((tabId) => { delete status[tabId]; clearTimeout(timer[tabId]); delete timer[tabId]; });
+chrome.tabs.onActivated.addListener(({ tabId }) => { siap.then(() => teruskan(tabId)); });
+chrome.tabs.onRemoved.addListener((tabId) => { siap.then(() => { delete status[tabId]; simpanStatus(); }); clearTimeout(timer[tabId]); delete timer[tabId]; });

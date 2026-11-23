@@ -171,10 +171,19 @@ def fraksi_berjalan(kode: str, pasar: str, t_akhir: float, tf: str = "1d", sekar
     """
     now = sekarang or datetime.now(timezone.utc)
     ts = now.timestamp()
+    bursa = bursa_untuk(kode, pasar)
     if tf in TF_DETIK:
         lewat = ts - t_akhir
-        return max(0.0, lewat / TF_DETIK[tf]) if 0 <= lewat < TF_DETIK[tf] else None
-    bursa = bursa_untuk(kode, pasar)
+        if not (0 <= lewat < TF_DETIK[tf]):
+            return None
+        if bursa in SESI_BURSA:  # 1.4.0: bursa sudah tutup = bar intraday terakhir sudah selesai
+            nama_z, jam_z, jadwal_z = SESI_BURSA[bursa]
+            lk = now.astimezone(_zona(nama_z, jam_z))
+            sesi_z = jadwal_z.get(lk.weekday())
+            m = lk.hour * 60 + lk.minute
+            if not sesi_z or m >= sesi_z[-1][2] * 60 + sesi_z[-1][3] + 15 or m < sesi_z[0][0] * 60 + sesi_z[0][1]:
+                return None
+        return max(0.0, lewat / TF_DETIK[tf])
     tgl_bar = datetime.fromtimestamp(t_akhir, timezone.utc).date()
     if bursa == "kripto":
         mulai = datetime(tgl_bar.year, tgl_bar.month, tgl_bar.day, tzinfo=timezone.utc).timestamp()
@@ -208,8 +217,11 @@ def fraksi_berjalan(kode: str, pasar: str, t_akhir: float, tf: str = "1d", sekar
     if tf == "1d":
         return fraksi_hari_ini() if tgl_bar == lokal.date() else None
     if tf == "1wk":
-        # bar mingguan berjalan sampai sesi Jumat selesai
-        if (lokal.date() - tgl_bar).days >= 7 or lokal.weekday() > 4:
+        # bar mingguan berjalan sampai sesi Jumat selesai. 1.4.0: dibandingkan per minggu (Senin), karena bar minggu
+        # yang dimulai Selasa (Senin libur) dulu masih dianggap berjalan pada Senin pagi minggu berikutnya.
+        senin_bar = tgl_bar - timedelta(days=tgl_bar.weekday())
+        senin_ini = lokal.date() - timedelta(days=lokal.weekday())
+        if senin_bar != senin_ini or lokal.weekday() > 4:
             return None
         hari = fraksi_hari_ini()
         if hari is None and lokal.weekday() == 4:
@@ -218,7 +230,17 @@ def fraksi_berjalan(kode: str, pasar: str, t_akhir: float, tf: str = "1d", sekar
     if tf == "1mo":
         if (tgl_bar.year, tgl_bar.month) != (lokal.year, lokal.month):
             return None
-        return min(1.0, lokal.day / 30)
+        # 1.4.0: dihitung per hari bursa (Senin–Jumat); hari bursa terakhir bulan ini setelah tutup = sudah selesai
+        import calendar
+        jml = calendar.monthrange(lokal.year, lokal.month)[1]
+        hari_bursa = [d for d in range(1, jml + 1) if datetime(lokal.year, lokal.month, d).weekday() < 5]
+        if not hari_bursa:
+            return None
+        hari = fraksi_hari_ini()
+        lewat_hari = sum(1 for d in hari_bursa if d < lokal.day) + (hari if (lokal.day in hari_bursa and hari is not None) else (1.0 if lokal.day in hari_bursa else 0.0))
+        if lokal.day >= hari_bursa[-1] and (lokal.day > hari_bursa[-1] or hari is None):
+            return None
+        return min(1.0, lewat_hari / len(hari_bursa))
     return None
 
 
@@ -248,7 +270,7 @@ def dekat_level(r: dict) -> dict:
 _KUNCI = threading.Lock()
 _MEMORI: dict[tuple, list] = {}
 FILE_RIWAYAT = FOLDER / "cache" / "skor_harian.json"
-VERSI_RIWAYAT = "1.3.0|1"  # naikkan hanya bila skor mesin berubah (1.3.0: skala skor baru), supaya cache tidak dihitung ulang
+VERSI_RIWAYAT = "1.4.0|2"  # naikkan hanya bila skor mesin berubah (1.3.0: skala skor baru), supaya cache tidak dihitung ulang
 
 
 def _muat_riwayat() -> dict:
@@ -729,3 +751,131 @@ def narasi(r: dict, simbol: str, bendera: list | None = None, rs: dict | None = 
     if dekat.get("s1"):
         bagian.append(f"S1 {fp(dekat['s1']['harga'])} ({persen(dekat['s1']['jarak_pct'])})")
     return {"inti": " · ".join(bagian), "singkat": singkat, "paragraf": [kondisi, skenario]}
+
+
+# ------------------------------------------------------------------
+# Kesimpulan semua timeframe + skor gabungan (1.4.0)
+# ------------------------------------------------------------------
+# Bobot skor gabungan. Di uji data lama (Jun 2025 – Nov 2026), gabungan 1D + 1W memisahkan hasil 20 hari lebih baik
+# daripada 1D saja (beda kelompok skor tertinggi vs terendah 4,1 vs 2,9 poin), jadi harian dan mingguan diberi bobot
+# terbesar; 1H/4H (belum bisa diuji karena tidak ada riwayat intraday panjang) hanya pelengkap waktu masuk.
+BOBOT_TF = {"1h": 0.10, "4h": 0.15, "1d": 0.35, "1wk": 0.30, "1mo": 0.10}
+URUT_TF = ["1h", "4h", "1d", "1wk", "1mo"]
+NAMA_TF = {"1h": "1H", "4h": "4H", "1d": "1D", "1wk": "1W", "1mo": "1M"}
+
+T_SEMUA_ID = {
+    "semua_naik": "Semua timeframe searah naik: tren kuat dan sehat dari jangka pendek sampai panjang.",
+    "naik_rehat": "Tren besar naik; harian/jangka pendek sedang istirahat (konsolidasi), belum ada tanda berbalik.",
+    "koreksi_dalam_naik": "Tren besar (mingguan/bulanan) naik, tetapi harian/jangka pendek sedang koreksi.",
+    "naik_awal": "Mulai menguat dari bawah: harian dan jangka pendek naik, tren besar belum ikut.",
+    "semua_turun": "Semua timeframe searah turun: tekanan jual dominan di semua jangka waktu.",
+    "turun_rehat": "Tren besar turun; harian/jangka pendek sedang tertahan, belum ada tanda pembalikan.",
+    "pantul_dalam_turun": "Tren besar (mingguan/bulanan) turun, tetapi harian/jangka pendek sedang memantul.",
+    "turun_awal": "Mulai melemah: harian dan jangka pendek turun, tren besar belum ikut turun.",
+    "campur": "Timeframe saling berlawanan atau netral: belum ada arah yang jelas.",
+    "s_semua_naik": ["Posisi yang ada bisa ditahan selama close 1D bertahan di atas {batal}.",
+                     "Beli baru jangan dikejar; tunggu koreksi ke {zona}."],
+    "s_naik_rehat": ["Tahan posisi; beli tambahan paling aman dekat support {s1} ({s1_jarak}).",
+                     "Lanjutan naik terkonfirmasi bila close 1D di atas {r1}."],
+    "s_koreksi_dalam_naik": ["Koreksi di dalam tren naik bisa jadi kesempatan mencicil beli dekat {s1} ({s1_jarak}).",
+                             "Tunggu tanda berbalik di timeframe kecil (skor 4H/1H kembali ≥ +20) sebelum masuk; batal bila close 1D di bawah {batal}."],
+    "s_naik_awal": ["Pembalikan naik masih awal: kalau masuk, mulai kecil dan tambah bila skor 1W ikut di atas +20.",
+                    "Batal bila close 1D kembali di bawah {s1}."],
+    "s_semua_turun": ["Hindari beli baru; posisi yang ada pertimbangkan dikurangi.",
+                      "Tren baru dianggap berbalik bila close 1D di atas {konfirmasi} dan skor 1W membaik."],
+    "s_turun_rehat": ["Belum ada pembalikan: hindari beli selama harga di bawah {r1}.",
+                      "Bila support {s1} jebol, tekanan turun kemungkinan berlanjut."],
+    "s_pantul_dalam_turun": ["Pantulan di dalam tren turun: jangan dikejar; kenaikan ke {r1} bisa dipakai untuk mengurangi posisi.",
+                             "Beli baru tunggu skor 1W ikut di atas +20."],
+    "s_turun_awal": ["Lindungi posisi: pelemahan berlanjut bila close 1D di bawah {s1}.",
+                     "Jangan menambah sampai close 1D kembali di atas {r1}."],
+    "s_campur": ["Tunggu arah: close 1D di atas {naik} = skenario naik, di bawah {turun} = skenario turun.",
+                 "Kalau tetap masuk, pakai ukuran kecil dan stop yang jelas."],
+    "s_risiko": "Atur ukuran posisi dari jarak ke stop (mis. rugi maksimal 1–2% modal per posisi).",
+    "tanpa_level": "-",
+}
+
+
+def label_skor(skor: float) -> str:
+    """Label untuk skor gabungan (ambang sama dengan skor per timeframe)."""
+    return ("Bullish kuat" if skor >= 50 else "Bullish" if skor >= 20 else "Netral / tunggu konfirmasi" if skor > -20
+            else "Bearish" if skor > -50 else "Bearish kuat")
+
+
+def kesimpulan_semua_tf(hasil: dict, T: dict | None = None, fp=None, pct=None, rencana=None) -> dict:
+    """hasil = {tf: hasil analyze()} untuk 1H, 4H, 1D, 1W, 1M (yang tersedia saja).
+
+    Mengembalikan {"skor", "label", "kasus", "kesimpulan", "saran": [...], "tf": [{tf, nama, skor, label, tren,
+    sikap, ringkas, rr_rendah, berjalan}], "horizon": {pendek, menengah, panjang}, "bobot"}."""
+    T = T or T_SEMUA_ID
+    tfs = [tf for tf in URUT_TF if tf in hasil]
+    if not tfs:
+        raise ValueError("tidak ada timeframe")
+    mk = hasil[tfs[0]]["market"]
+    fp = fp or (lambda x: te.fmt_price(x, mk))
+    pct = pct or (lambda x: persen(x))
+    rencana = rencana or (lambda r: rencana_aksi(r))
+    baris = []
+    for tf in tfs:
+        r = hasil[tf]
+        try:
+            ra = rencana(r) or {}
+        except Exception:  # noqa: BLE001
+            ra = {}
+        baris.append({"tf": tf, "nama": NAMA_TF[tf], "skor": int(r["score"]), "label": r["label_id"],
+                      "tren": r["trend"]["label"], "sikap": ra.get("sikap"), "ringkas": ra.get("ringkas") or ra.get("judul", ""),
+                      "rr_rendah": bool(ra.get("rr_rendah")), "berjalan": "bar_berjalan" in r})
+    w = sum(BOBOT_TF[tf] for tf in tfs)
+    skor = int(round(sum(BOBOT_TF[tf] * float(hasil[tf]["score"]) for tf in tfs) / w))
+
+    def rata(xs):
+        v = [float(hasil[t]["score"]) for t in xs if t in hasil]
+        return sum(v) / len(v) if v else None
+
+    hz = {"pendek": rata(["1h", "4h"]), "menengah": rata(["1d"]), "panjang": rata(["1wk", "1mo"])}
+    arah = {k: (0 if v is None else 1 if v >= 20 else -1 if v <= -20 else 0) for k, v in hz.items()}
+    ap, am, ak = arah["panjang"], arah["menengah"], arah["pendek"]
+    ada_pendek = hz["pendek"] is not None
+    if ap > 0 and am > 0 and (ak > 0 or not ada_pendek):
+        kasus = "semua_naik"
+    elif ap < 0 and am < 0 and (ak < 0 or not ada_pendek):
+        kasus = "semua_turun"
+    elif ap > 0 and (am < 0 or ak < 0):
+        kasus = "koreksi_dalam_naik"
+    elif ap < 0 and (am > 0 or ak > 0):
+        kasus = "pantul_dalam_turun"
+    elif ap > 0:
+        kasus = "naik_rehat"
+    elif ap < 0:
+        kasus = "turun_rehat"
+    elif am > 0 and ak >= 0:
+        kasus = "naik_awal"
+    elif am < 0 and ak <= 0:
+        kasus = "turun_awal"
+    else:
+        kasus = "campur"
+
+    # Level dari timeframe harian (timeframe keputusan); bila tidak ada, dari timeframe terbesar yang tersedia.
+    rd = hasil.get("1d") or hasil[tfs[-1]]
+    p, harga = rd["plan"], float(rd["price"])
+    sup = [float(s["price"]) for s in rd.get("support") or []]
+    res = [float(s["price"]) for s in rd.get("resistance") or []]
+    a = float(rd["indicators"].get("atr14") or harga * 0.02)
+    s1 = sup[0] if sup else harga - 2 * a
+    r1 = res[0] if res else harga + 2 * a
+    lv = {"s1": fp(s1), "s1_jarak": pct((s1 / harga - 1) * 100), "r1": fp(r1), "naik": fp(r1), "turun": fp(s1),
+          "zona": fp(s1), "batal": fp(s1), "konfirmasi": fp(r1)}
+    try:
+        if p["bias"] == "long":
+            lo, hi = sorted(float(x) for x in p["entry_zone"][:2])
+            lv.update(zona=f"{fp(lo)}–{fp(hi)}", batal=fp(float(p["stop_loss"])))
+        elif p["bias"] == "short":
+            lv.update(konfirmasi=fp(float(p["stop_loss"])))
+        else:
+            lv.update(naik=fp(float(p["buy_trigger"])), turun=fp(float(p["sell_trigger"])))
+    except (KeyError, TypeError, ValueError):
+        pass
+    saran = [x.format(**lv) for x in T["s_" + kasus]] + [T["s_risiko"]]
+    return {"skor": skor, "label": label_skor(skor), "kasus": kasus, "kesimpulan": T[kasus], "saran": saran,
+            "tf": baris, "horizon": {k: (None if v is None else int(round(v))) for k, v in hz.items()},
+            "bobot": {tf: BOBOT_TF[tf] for tf in tfs}}

@@ -24,10 +24,11 @@ import math
 import re
 import sys
 from datetime import datetime, timezone
+from urllib.parse import quote
 
 import numpy as np
 
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 NAN = float("nan")
 
 # =============================================================================
@@ -102,6 +103,7 @@ def rsi(c, n=14):
     with np.errstate(divide="ignore", invalid="ignore"):
         r = 100 - 100 / (1 + au / ad)
     r = np.where((ad == 0) & ~np.isnan(au), 100.0, r)
+    r = np.where((ad == 0) & (au == 0), 50.0, r)  # 1.4.0: harga datar (mis. saham suspensi) = netral, bukan 100
     return r
 
 
@@ -189,15 +191,22 @@ def to_bars(rows=None, t=None, o=None, h=None, l=None, c=None, v=None):
     return b
 
 
-def resample(bars, tf):
-    """Resample bar ke timeframe lebih besar: '4h', '1d', '1wk', '1mo'."""
+# Geser jam (detik) supaya satu sesi bursa jatuh di satu tanggal saat dibagi per hari/minggu/bulan.
+# 1.4.0: dulu semua pasar memakai WIB (+7 jam), sehingga sesi saham AS (13:30–21:00 UTC) terbelah di 17:00 UTC
+# dan candle harian kripto bergeser 7 jam dari candle harian Binance/TradingView (00:00 UTC).
+GESER_HARI = {"idx": 7 * 3600, "us": -5 * 3600, "crypto": 0, "lain": 0}
+
+
+def resample(bars, tf, market=None):
+    """Resample bar ke timeframe lebih besar: '4h', '1d', '1wk', '1mo'. market menentukan batas hari (lihat GESER_HARI)."""
     t = bars["t"]
+    g = GESER_HARI.get(market, 7 * 3600)
     if tf == "1wk":
-        key = np.floor((t + 7 * 3600 - 4 * 86400) / (7 * 86400))  # minggu Senin, WIB
+        key = np.floor((t + g - 4 * 86400) / (7 * 86400))  # minggu mulai Senin
     elif tf == "1mo":
-        key = np.array([(lambda d: d.year * 12 + d.month)(datetime.fromtimestamp(x + 7 * 3600, timezone.utc)) for x in t])
+        key = np.array([(lambda d: d.year * 12 + d.month)(datetime.fromtimestamp(x + g, timezone.utc)) for x in t])
     elif tf == "1d":
-        key = np.floor((t + 7 * 3600) / 86400)
+        key = np.floor((t + g) / 86400)
     elif tf == "4h":
         key = np.floor(t / (4 * 3600))
     else:
@@ -399,7 +408,7 @@ def fetch_yahoo(code, tf="1d"):
     last_err = None
     for host in ("query1", "query2"):
         try:
-            j = _get_json(f"https://{host}.finance.yahoo.com/v8/finance/chart/{code}?range={rng}&interval={interval}&includePrePost=false")
+            j = _get_json(f"https://{host}.finance.yahoo.com/v8/finance/chart/{quote(code, safe='.-=^')}?range={rng}&interval={interval}&includePrePost=false")
             res = j["chart"]["result"][0]
             q = res["indicators"]["quote"][0]
             rows = [[t, o, h, l, c, v or 0] for t, o, h, l, c, v in
@@ -424,7 +433,7 @@ def fetch_binance(pair, tf="1d"):
     last_err = None
     for host in ("https://api.binance.com", "https://data-api.binance.vision", "https://api.binance.us"):
         try:
-            j = _get_json(f"{host}/api/v3/klines?symbol={pair}&interval={iv}&limit=1000")
+            j = _get_json(f"{host}/api/v3/klines?symbol={quote(pair, safe='')}&interval={iv}&limit=1000")
             if not isinstance(j, list) or len(j) < 30:
                 raise ValueError(str(j)[:120])
             rows = [[k[0] / 1000, float(k[1]), float(k[2]), float(k[3]), float(k[4]), float(k[5])] for k in j]
@@ -809,6 +818,32 @@ def candle_patterns(o, h, l, c, a):
     return out
 
 
+def panah_candle(cps, o, h, l, c, n):
+    """Pola candle kuat untuk panah di chart (1.4.0): tanpa pola yang gagal dikonfirmasi (close sesudahnya melewati
+    ujung pola ke arah berlawanan sebelum terkonfirmasi), satu panah per candle dan arah."""
+    out, sudah = [], set()
+    for x in sorted(cps, key=lambda z: (-z.get("bars", 1), -z["strength"])):
+        i, bias = x["i"], x["bias"]
+        if bias == 0 or x["strength"] < 2 or (i, bias) in sudah:
+            continue
+        if x["name"] in CANDLE_PERLU_KONFIRMASI:
+            i0 = max(0, i - x.get("bars", 1) + 1)
+            lo, hi = float(np.min(l[i0:i + 1])), float(np.max(h[i0:i + 1]))
+            atas, bawah = max(o[i], c[i]), min(o[i], c[i])
+            gagal = False
+            for j in range(i + 1, min(n, i + 4)):
+                if (bias > 0 and c[j] > atas) or (bias < 0 and c[j] < bawah):
+                    break
+                if (bias > 0 and c[j] < lo) or (bias < 0 and c[j] > hi):
+                    gagal = True
+                    break
+            if gagal:
+                continue
+        sudah.add((i, bias))
+        out.append({"i": int(i), "bias": int(bias), "name": x["name"], "strength": x["strength"]})
+    return sorted(out, key=lambda z: z["i"])
+
+
 def bobot_candle(x, n, o, h, l, c, v, vs, a, levels, sma50, sma200, berjalan=False, has_vol=True):
     """Lengkapi satu pola candle dengan konteks: konfirmasi, lokasi, volume. Mengembalikan bobot sinyal (sudah dibatasi).
 
@@ -839,7 +874,10 @@ def bobot_candle(x, n, o, h, l, c, v, vs, a, levels, sma50, sma200, berjalan=Fal
         kali *= {"ya": 1.3, "gagal": 0.0}.get(x["konfirmasi"], 0.6)
 
     if bias != 0 and kali > 0:
-        calon = [(float(p), "support" if bias > 0 else "resistance") for p in levels]
+        # 1.4.0: candle bullish hanya dicek ke support, bearish ke resistance (dulu semua level diberi label yang sama)
+        jenis = "support" if bias > 0 else "resistance"
+        daftar = levels.get(jenis, []) if isinstance(levels, dict) else levels
+        calon = [(float(p), jenis) for p in daftar]
         for nama, ser in (("MA50", sma50), ("MA200", sma200)):
             if ser is not None and not np.isnan(ser[i]):
                 calon.append((float(ser[i]), nama))
@@ -931,6 +969,8 @@ def chart_patterns(o, h, l, c, a, sw):
             if len(ac) and ac.max() > top + 0.3 * a_last:
                 continue
             conf = bool(len(ac) and (ac < neck - 0.1 * a_last).any())
+            if conf and price > neck + 0.25 * a_last:
+                continue  # 1.4.0: neckline sudah jebol lalu direbut kembali (bear trap): pola gagal, bukan sinyal turun
             target = neck - (top - neck)
             pats.append({"name": "Double Top", "name_id": "Double Top (puncak ganda)", "bias": -1,
                          "status": "terkonfirmasi" if conf else "terbentuk, menunggu tembus neckline",
@@ -945,6 +985,8 @@ def chart_patterns(o, h, l, c, a, sw):
             if len(ac) and ac.min() < bot - 0.3 * a_last:
                 continue
             conf = bool(len(ac) and (ac > neck + 0.1 * a_last).any())
+            if conf and price < neck - 0.25 * a_last:
+                continue  # 1.4.0: neckline sudah tembus lalu ditinggalkan lagi (bull trap): pola gagal
             target = neck + (neck - bot)
             pats.append({"name": "Double Bottom", "name_id": "Double Bottom (lembah ganda)", "bias": 1,
                          "status": "terkonfirmasi" if conf else "terbentuk, menunggu tembus neckline",
@@ -971,6 +1013,10 @@ def chart_patterns(o, h, l, c, a, sw):
                 if len(ac) and ac.max() > hd[2]:
                     continue
                 conf = bool(len(ac) and ac[-1] < neck_now - 0.1 * a_last) or bool(len(ac) and (ac < np.array([_line_at((n1[0], n1[2]), (n2[0], n2[2]), z) for z in range(rs[0] + 1, n)]) - 0.1 * a_last).any())
+                # 1.4.0: batal bila harga sekarang di atas bahu kanan (= level batal yang ditampilkan), atau neckline
+                # sudah jebol lalu direbut kembali.
+                if price > rs[2] or (conf and price > neck_now + 0.25 * a_last):
+                    continue
                 pats.append({"name": "Head and Shoulders", "name_id": "Head & Shoulders (pembalikan turun)", "bias": -1,
                              "status": "terkonfirmasi (neckline jebol)" if conf else "terbentuk, menunggu tembus neckline",
                              "confirmed": conf, "points": [list(map(float, (x[0], x[2]))) for x in p],
@@ -987,6 +1033,8 @@ def chart_patterns(o, h, l, c, a, sw):
                 if len(ac) and ac.min() < hd[2]:
                     continue
                 conf = bool(len(ac) and (ac > np.array([_line_at((n1[0], n1[2]), (n2[0], n2[2]), z) for z in range(rs[0] + 1, n)]) + 0.1 * a_last).any())
+                if price < rs[2] or (conf and price < neck_now - 0.25 * a_last):
+                    continue
                 pats.append({"name": "Inverse Head and Shoulders", "name_id": "Inverse Head & Shoulders (pembalikan naik)", "bias": 1,
                              "status": "terkonfirmasi (neckline tembus)" if conf else "terbentuk, menunggu tembus neckline",
                              "confirmed": conf, "points": [list(map(float, (x[0], x[2]))) for x in p],
@@ -1069,7 +1117,9 @@ def chart_patterns(o, h, l, c, a, sw):
         pe = n - 1 - cl
         if pe < 5:
             break
-        cons_h, cons_l = h[pe + 1:].max(), l[pe + 1:].min()
+        # 1.4.0: kotak bendera tanpa candle terakhir, supaya candle terakhir bisa menjadi breakout
+        # (dulu ikut dihitung, sehingga close > batas atas kotak mustahil terjadi).
+        cons_h, cons_l = h[pe + 1:n - 1].max(), l[pe + 1:n - 1].min()
         for pl_ in range(3, FLAG_TIANG + 1):
             ps = pe - pl_
             if ps < 0:
@@ -1116,7 +1166,9 @@ def chart_patterns(o, h, l, c, a, sw):
             continue
         if not p.get("confirmed"):
             continue
-        k = min(int(p["end_idx"]), n - 1) if "points" in p else n - 3  # pola swing: sejak swing terakhir; pola garis/flag: 3 bar terakhir
+        # pola swing: sejak swing terakhir; pola garis/flag: sejak awal pola (1.4.0: dulu hanya 3 bar terakhir, sehingga
+        # target yang tercapai 5 bar lalu bisa "hidup lagi")
+        k = min(int(p["end_idx"]), n - 1) if "points" in p else int(p.get("start_idx", n - 3))
         k = max(0, min(k, n - 1))
         p["target_hit"] = bool(l[k:].min() <= tg) if p["bias"] < 0 else bool(h[k:].max() >= tg)
     return keep
@@ -1134,13 +1186,14 @@ def divergences(h, l, c, r, ph, pl):
     out = []
     lows = [i for i in pl if not np.isnan(r[i])][-2:]
     highs = [i for i in ph if not np.isnan(r[i])][-2:]
-    if len(lows) == 2 and lows[1] >= n - 25 and lows[1] - lows[0] >= 4:
+    # 1.4.0: batal bila harga sudah menembus ujung pivot kedua (bullish: close di bawah low pivot; bearish: di atas high)
+    if len(lows) == 2 and lows[1] >= n - 25 and lows[1] - lows[0] >= 4 and c[-1] >= l[lows[1]]:
         i, j = lows
         if l[j] < l[i] and r[j] > r[i] + 2:
             out.append({"name": "Bullish RSI Divergence", "name_id": "Divergence bullish RSI (harga lower low, RSI higher low)", "bias": 1, "i1": int(i), "i2": int(j)})
         elif l[j] > l[i] and r[j] < r[i] - 2:
             out.append({"name": "Hidden Bullish Divergence", "name_id": "Hidden divergence bullish (tren naik berlanjut)", "bias": 1, "i1": int(i), "i2": int(j), "weak": True})
-    if len(highs) == 2 and highs[1] >= n - 25 and highs[1] - highs[0] >= 4:
+    if len(highs) == 2 and highs[1] >= n - 25 and highs[1] - highs[0] >= 4 and c[-1] <= h[highs[1]]:
         i, j = highs
         if h[j] > h[i] and r[j] < r[i] - 2:
             out.append({"name": "Bearish RSI Divergence", "name_id": "Divergence bearish RSI (harga higher high, RSI lower high)", "bias": -1, "i1": int(i), "i2": int(j)})
@@ -1152,6 +1205,11 @@ def divergences(h, l, c, r, ph, pl):
 # =============================================================================
 # 8. Analisa utama
 # =============================================================================
+
+
+def _arah(a, b):
+    """1 bila a > b, −1 bila a < b, 0 bila sama (1.4.0: harga datar tidak lagi dihitung bearish)."""
+    return 1 if a > b else -1 if a < b else 0
 
 
 def _last(x):
@@ -1200,10 +1258,11 @@ def analyze(bars, symbol="", market=None, tf="1d", include_series=False, meta=No
     bu, bm, bl = bollinger(c)
     a = atr(h, l, c)
     a = np.where(np.isnan(a), np.nanmean(true_range(h, l, c)[:14]), a)
+    a = np.maximum(np.nan_to_num(a, nan=0.0), max(abs(price) * 1e-4, 1e-9))  # 1.4.0: harga datar total -> ATR 0 -> bagi nol
     k_, d_ = stochastic(h, l, c)
     ax, pdi, mdi = adx(h, l, c)
     vs = sma(v, 20)
-    ob = obv(c, v)
+    ob = obv(c, v_asli if berjalan and live_frac < 0.25 else v)  # 1.4.0: proyeksi volume awal sesi (s.d. 20×) tidak masuk OBV
     a_last = float(a[-1])
     has_vol = bool(np.nansum(v[-20:]) > 0)
 
@@ -1229,7 +1288,8 @@ def analyze(bars, symbol="", market=None, tf="1d", include_series=False, meta=No
     ph5, pl5 = pivots(h, l, kmaj)
     ph3, pl3 = pivots(h, l, 3)
     sw = swings(h, l, a, k=3, min_atr=1.0)
-    sup, res = support_resistance(h, l, c, a_last, ph5 + ph3[-6:], pl5 + pl3[-6:], n)
+    # 1.4.0: indeks digabung tanpa dobel (pivot k=5 hampir selalu juga pivot k=3; dulu terhitung dua sentuhan)
+    sup, res = support_resistance(h, l, c, a_last, sorted(set(ph5) | set(ph3[-6:])), sorted(set(pl5) | set(pl3[-6:])), n)
     tls = trendlines(h, l, c, a, ph3, pl3)
     cps = candle_patterns(o, h, l, c, a)
     if berjalan:
@@ -1265,13 +1325,13 @@ def analyze(bars, symbol="", market=None, tf="1d", include_series=False, meta=No
     # MA
     ma_pts = 0.0
     if ind["sma50"]:
-        ma_pts += 1 if price > ind["sma50"] else -1
+        ma_pts += _arah(price, ind["sma50"])
     if ind["sma200"]:
-        ma_pts += 1 if price > ind["sma200"] else -1
+        ma_pts += _arah(price, ind["sma200"])
         if ind["sma50"]:
-            ma_pts += 1 if ind["sma50"] > ind["sma200"] else -1
+            ma_pts += _arah(ind["sma50"], ind["sma200"])
     elif ind["sma20"] and ind["sma50"]:
-        ma_pts += 1 if ind["sma20"] > ind["sma50"] else -1
+        ma_pts += _arah(ind["sma20"], ind["sma50"])
     adx_v = ind["adx14"] or 0
     trend_mult = 1.25 if adx_v >= 25 else 0.7 if adx_v < 18 else 1.0
     if ma_pts >= 2:
@@ -1315,7 +1375,7 @@ def analyze(bars, symbol="", market=None, tf="1d", include_series=False, meta=No
             sig("Momentum", 0, f"RSI {rv:.0f} oversold: tekanan jual berat, peluang technical rebound")
     if ind["macd"] is not None and ind["macd_signal"] is not None:
         mc, mk = _crossed(m, ms, 5)
-        pts = (0.75 if m[-1] > ms[-1] else -0.75) + (0.5 if m[-1] > 0 else -0.5)
+        pts = 0.75 * _arah(m[-1], ms[-1]) + 0.5 * _arah(m[-1], 0)
         rising = mh[-1] > mh[-2] if not np.isnan(mh[-2]) else False
         txt = f"MACD {'di atas' if m[-1] > ms[-1] else 'di bawah'} signal, {'di atas' if m[-1] > 0 else 'di bawah'} nol, histogram {'menguat' if rising else 'melemah'}"
         if mc:
@@ -1328,8 +1388,10 @@ def analyze(bars, symbol="", market=None, tf="1d", include_series=False, meta=No
             sig("Momentum", 0.5, "Stochastic cross naik di area oversold")
         elif sc < 0 and ind["stoch_k"] > 70:
             sig("Momentum", -0.5, "Stochastic cross turun di area overbought")
+    # 1.4.0: bobot diturunkan (1,5 -> 0,75; hidden 0,75 -> 0,4). Di uji_skor 1.3.0 kategori ini justru berlawanan arah
+    # dengan hasil 20 hari di ketiga pasar.
     for d in dv:
-        sig("Divergence", (0.75 if d.get("weak") else 1.5) * d["bias"], d["name_id"])
+        sig("Divergence", (0.4 if d.get("weak") else 0.75) * d["bias"], d["name_id"])
 
     # Volume
     if has_vol and ind["volume_ratio"]:
@@ -1382,7 +1444,7 @@ def analyze(bars, symbol="", market=None, tf="1d", include_series=False, meta=No
         rentang_c.append((x0, x["i"], x["bias"]))
         recent_c.append(x)
     recent_c.sort(key=lambda x: x["i"])
-    level_c = [s_["price"] for s_ in sup[:3]] + [s_["price"] for s_ in res[:3]]
+    level_c = {"support": [s_["price"] for s_ in sup[:3]], "resistance": [s_["price"] for s_ in res[:3]]}
     bobot_c = [bobot_candle(x, n, o, h, l, c, v, vs, a, level_c, s50, s200, berjalan, has_vol) for x in recent_c]
     # Candlestick hanya pemicu jangka pendek: total sumbangannya dibatasi ±2 poin.
     total_c = sum(bobot_c)
@@ -1445,7 +1507,7 @@ def analyze(bars, symbol="", market=None, tf="1d", include_series=False, meta=No
             "sma20": s20.tolist(), "sma50": s50.tolist(), "sma200": s200.tolist(), "ema9": e9.tolist(), "ema21": e21.tolist(),
             "bb_upper": bu.tolist(), "bb_lower": bl.tolist(), "rsi": r.tolist(), "macd": m.tolist(), "macd_signal": ms.tolist(),
             "macd_hist": mh.tolist(), "stoch_k": k_.tolist(), "stoch_d": d_.tolist(), "atr": a.tolist(),
-            "candles_all": cps, "swings": [[int(s[0]), s[1], float(s[2])] for s in sw],
+            "candles_all": cps, "candles_panah": panah_candle(cps, o, h, l, c, n), "swings": [[int(s[0]), s[1], float(s[2])] for s in sw],
         }
     return _clean(result)
 
@@ -1456,8 +1518,9 @@ def trade_plan(price, a, score, sup, res, pats, market, rsi_v=None, ema21_v=None
     res_p = [s["price"] for s in res]
     if not res_p and high52 and high52 > price + 0.5 * a:
         res_p = [high52]
-    pat_targets_up = [p["target"] for p in pats if p.get("target") and p["bias"] > 0 and p["target"] > price]
-    pat_targets_dn = [p["target"] for p in pats if p.get("target") and p["bias"] < 0 and p["target"] < price]
+    # 1.4.0: target pola yang sudah tercapai atau terlalu dekat (< 0,7 ATR) tidak dipakai sebagai target rencana
+    pat_targets_up = [p["target"] for p in pats if p.get("target") and p["bias"] > 0 and p["target"] - price >= 0.7 * a and not p.get("target_hit")]
+    pat_targets_dn = [p["target"] for p in pats if p.get("target") and p["bias"] < 0 and price - p["target"] >= 0.7 * a and not p.get("target_hit")]
     if score >= 20:
         near_sup = next((s for s in sup_p if price - s <= 3 * a), None)
         overbought = bool(rsi_v and rsi_v >= 70)
@@ -1512,8 +1575,10 @@ def trade_plan(price, a, score, sup, res, pats, market, rsi_v=None, ema21_v=None
             note = "Saham IDX umumnya tidak bisa short: anggap ini sinyal untuk menghindari beli / mengurangi posisi. " + back
         elif market == "us":
             note = "Untuk investor, artinya hindari beli / kurangi posisi (short hanya lewat broker yang mendukung, dengan stop di atas resistance). " + back
-        else:
+        elif market == "crypto":
             note = "Untuk kripto bisa short (futures) dengan stop di atas resistance; untuk spot artinya hindari beli / kurangi posisi."
+        else:
+            note = "Tekanan turun dominan: hindari beli / kurangi posisi. " + back
         return {"bias": "short", "bias_id": "Belum saatnya beli",
                 "entry_zone": [rp(price), rp(min(near_res or price + a, price + a))], "stop_loss": rp(stop), "targets": tg[:3],
                 "risk_pct": round(risk / price * 100, 2), "rr": [round((price - x) / risk, 2) for x in tg[:3]],
@@ -1523,8 +1588,8 @@ def trade_plan(price, a, score, sup, res, pats, market, rsi_v=None, ema21_v=None
     return {"bias": "wait", "bias_id": "Tunggu konfirmasi",
             "buy_trigger": rp(r1 + 0.2 * a), "sell_trigger": rp(s1 - 0.2 * a),
             "range": [rp(s1), rp(r1)], "stop_loss": None, "targets": [],
-            "note": f"Sinyal belum searah. Skenario naik valid jika close di atas {fmt_price(r1, market)}; "
-                    f"skenario turun jika close di bawah {fmt_price(s1, market)}. Trading range: beli dekat support, jual dekat resistance."}
+            "note": f"Sinyal belum searah. Skenario naik valid jika close di atas {fmt_price(rp(r1 + 0.2 * a), market)}; "
+                    f"skenario turun jika close di bawah {fmt_price(rp(s1 - 0.2 * a), market)}. Trading range: beli dekat support, jual dekat resistance."}
 
 
 def detect_tf(bars):
@@ -1573,22 +1638,22 @@ def run_json(csv_text=None, rows=None, symbol="", market=None, tf=None, meta=Non
     tf = tf or detect_tf(b)
     if not market or market == "auto":
         market = resolve(symbol)[0][0] if symbol else "us"
-    res = analyze_mtf(auto_mtf(b, tf), symbol=symbol, market=market, primary=tf, include_series=True, meta=meta)
+    res = analyze_mtf(auto_mtf(b, tf, market), symbol=symbol, market=market, primary=tf, include_series=True, meta=meta)
     return json.dumps(res, ensure_ascii=False, allow_nan=False)
 
 
-def auto_mtf(bars, tf="1d"):
+def auto_mtf(bars, tf="1d", market=None):
     """Buat timeframe lebih besar dari data yang ada."""
     out = {tf: bars}
     if tf in ("1h", "30m", "15m"):
-        out["4h"] = resample(bars, "4h")
-        out["1d"] = resample(bars, "1d")
+        out["4h"] = resample(bars, "4h", market)
+        out["1d"] = resample(bars, "1d", market)
     elif tf == "4h":
-        out["1d"] = resample(bars, "1d")
+        out["1d"] = resample(bars, "1d", market)
     elif tf == "1d":
-        out["1wk"] = resample(bars, "1wk")
+        out["1wk"] = resample(bars, "1wk", market)
     elif tf == "1wk":
-        out["1mo"] = resample(bars, "1mo")
+        out["1mo"] = resample(bars, "1mo", market)
     return {k: v for k, v in out.items() if len(v["c"]) >= 30}
 
 
@@ -1797,7 +1862,7 @@ def plot_chart(bars, r, path, last_n=160, catatan=None):
         lx = max(p["start_idx"], s0)
         ax.annotate(p["name"], (lx, h[lx:n].max() if p["bias"] < 0 else l[lx:n].min()), color=col, fontsize=9, fontweight="bold",
                     xytext=(0, 6 if p["bias"] < 0 else -14), textcoords="offset points")
-    for x in S["candles_all"]:
+    for x in S.get("candles_panah", S["candles_all"]):
         if x["i"] >= n - 20 and x["bias"] != 0 and x["strength"] >= 2:
             i = x["i"]
             y = l[i] - 0.4 * (h[i] - l[i]) if x["bias"] > 0 else h[i] + 0.4 * (h[i] - l[i])
@@ -2018,7 +2083,7 @@ def main(argv=None):
     if args.no_mtf:
         res = analyze(bars, symbol=sym, market=market, tf=args.tf, meta=meta, live_frac=berjalan)
     else:
-        res = analyze_mtf(auto_mtf(bars, args.tf), symbol=sym, market=market, primary=args.tf, live_frac=berjalan)
+        res = analyze_mtf(auto_mtf(bars, args.tf, market), symbol=sym, market=market, primary=args.tf, live_frac=berjalan)
         res["meta"] = meta
     catatan = _tulisan(ws, res, bars, kode, market, args, berjalan) if ws else None
     os.makedirs(args.out, exist_ok=True)

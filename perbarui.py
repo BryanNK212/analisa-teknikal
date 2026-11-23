@@ -12,8 +12,9 @@ Cara kerja:
 1. Baca rilis.json  -> {"repo": "pemilik/nama-repo", "cabang": "main", "token": ""}.
    repo kosong = pembaruan otomatis mati.
 2. Bandingkan "id" di VERSI.json lokal dengan VERSI.json di GitHub (berkas kecil).
-3. Bila berbeda: unduh zip cabang itu, periksa isinya, simpan berkas lama yang tertimpa ke _lama/,
-   lalu tulis berkas baru satu per satu (atomik).
+3. Bila berbeda: unduh zip cabang itu, periksa isinya, siapkan semua berkas baru (*.baru), simpan berkas lama
+   yang tertimpa ke _lama/, lalu ganti satu per satu (atomik). VERSI.json ditulis paling akhir; gagal di tengah
+   jalan = berkas yang sudah diganti dikembalikan dari _lama/ dan id lama tetap, jadi dicoba lagi lain kali.
 Tidak pernah disentuh: pengaturan.json (daftar pantau, bahasa), cache/, output/, _lama/.
 Folder sumber (yang memuat buat_paket.py, yaitu komputer pemilik) tidak pernah diperbarui dari GitHub.
 Gagal (tanpa internet, GitHub tidak terjangkau) = diam saja, program jalan dengan versi yang ada.
@@ -117,34 +118,79 @@ def pasang(data: bytes, id_baru: str) -> int:
         shutil.rmtree(lama, ignore_errors=True)
     lama.mkdir(exist_ok=True)
 
-    berubah = 0
-    for rel, info in sorted(isi.items()):
-        baru = z.read(info)
-        tujuan = FOLDER / rel
-        if tujuan.exists():
-            if tujuan.read_bytes() == baru:
+    # VERSI.json (dan VERSI.txt) ditulis PALING AKHIR: kalau pemasangan gagal di tengah jalan, id lama tetap
+    # tercatat sehingga pembukaan berikutnya mencoba lagi (dulu VERSI.json ikut urutan abjad dan tertulis duluan).
+    akhir = ("VERSI.txt", "VERSI.json")
+    urutan = sorted((r for r in isi if r not in akhir), key=str.lower) + [r for r in akhir if r in isi]
+
+    # Tahap 1: siapkan semua berkas baru sebagai *.baru (belum menyentuh berkas program).
+    siap: list[tuple[str, Path, Path]] = []
+    try:
+        for rel in urutan:
+            info = isi[rel]
+            baru = z.read(info)
+            tujuan = FOLDER / rel
+            if tujuan.is_file() and tujuan.read_bytes() == baru:
                 continue
-            cadang = lama / rel
-            cadang.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(tujuan, cadang)
-        tujuan.parent.mkdir(parents=True, exist_ok=True)
-        sementara = tujuan.with_name(tujuan.name + ".baru")
-        sementara.write_bytes(baru)
-        mode = (info.external_attr >> 16) & 0o777
-        if mode & 0o111 or rel.endswith("Contents/MacOS/buka"):
-            sementara.chmod(sementara.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-        os.replace(sementara, tujuan)  # atomik: peluncur yang sedang berjalan tetap memegang berkas lama
-        berubah += 1
+            tujuan.parent.mkdir(parents=True, exist_ok=True)
+            sementara = tujuan.with_name(tujuan.name + ".baru")
+            sementara.write_bytes(baru)
+            mode = (info.external_attr >> 16) & 0o777
+            if mode & 0o111 or rel.endswith("Contents/MacOS/buka"):
+                sementara.chmod(sementara.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+            siap.append((rel, tujuan, sementara))
+    except Exception:
+        for _, _, sementara in siap:
+            _singkirkan(sementara, lama / "_gagal")
+        raise
+
+    # Tahap 2: ganti satu per satu (atomik per berkas). Gagal di tengah = kembalikan yang sudah diganti.
+    diganti: list[tuple[Path, Path | None]] = []  # (tujuan, cadangan lama atau None bila berkas baru)
+    try:
+        for rel, tujuan, sementara in siap:
+            cadang = None
+            if tujuan.exists():
+                cadang = lama / rel
+                cadang.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(tujuan, cadang)
+            os.replace(sementara, tujuan)  # atomik: peluncur yang sedang berjalan tetap memegang berkas lama
+            diganti.append((tujuan, cadang))
+    except Exception:
+        for tujuan, cadang in reversed(diganti):
+            try:
+                if cadang is not None:
+                    shutil.copy2(cadang, tujuan)
+                else:
+                    _singkirkan(tujuan, lama / "_gagal")
+            except OSError:
+                pass
+        for _, _, sementara in siap:
+            if sementara.exists():
+                _singkirkan(sementara, lama / "_gagal")
+        raise
+    berubah = len(diganti)
 
     # Berkas program yang sudah tidak ada di versi baru dipindah ke _lama/ (bukan dihapus).
     sebelumnya = baca_json(lama / "VERSI.json").get("berkas") or []
     for rel in sebelumnya:
         if rel not in isi and aman(rel) and (FOLDER / rel).is_file():
-            cadang = lama / rel
-            cadang.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(FOLDER / rel), str(cadang))
-            berubah += 1
+            try:
+                cadang = lama / rel
+                cadang.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(FOLDER / rel), str(cadang))
+                berubah += 1
+            except OSError:
+                pass
     return berubah
+
+
+def _singkirkan(berkas: Path, ke: Path) -> None:
+    """Pindahkan berkas sisa pemasangan yang gagal ke _lama/_gagal/ (tidak dihapus)."""
+    try:
+        ke.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(berkas), str(ke / f"{berkas.name}.{int(time.time() * 1000)}"))
+    except OSError:
+        pass
 
 
 def main() -> int:

@@ -150,6 +150,17 @@
       "Average price change over the 20 trading days after the score was in a given band. Each score uses only data up to that day.",
     "Pasar": "Market", "semua hari": "all days", "{n} aset": "{n} assets", "{n} hari · naik {p}% dari waktu": "{n} days · up {p}% of the time",
     "Sampel terlalu sedikit.": "Sample too small.",
+    "Kesimpulan semua timeframe": "All-timeframe conclusion", "Menghitung semua timeframe…": "Calculating all timeframes…",
+    "Skor semua timeframe": "All-timeframe score", "Rata-rata tertimbang skor 1H, 4H, 1D, 1W, dan 1M": "Weighted average of the 1H, 4H, 1D, 1W and 1M scores",
+    "Skor dan rencana per timeframe": "Score and plan per timeframe", "Saran": "Suggestions",
+    "Skor gabungan = rata-rata tertimbang ({ket}). Level saran dari timeframe 1D. Rencana otomatis adalah peta level, bukan sinyal pasti: di uji data lama hasil rata-ratanya belum positif.":
+      "Combined score = weighted average ({ket}). Suggestion levels come from the 1D timeframe. The automatic plan is a map of levels, not a sure signal: in the back-test its average result is not yet positive.",
+    "Sampel kecil ({n} aset), anggap petunjuk saja:": "Small sample ({n} assets), treat as a hint only:",
+    "Uji ini dibuat dengan mesin {a}, sedangkan mesin sekarang {b}. Hitung ulang: python3 uji_skor.py": "This test was made with engine {a}, the current engine is {b}. Recalculate: python3 uji_skor.py",
+    "rata-rata R": "average R", "rugi kena stop": "loss at stop",
+    "Hasil rata-rata per rencana dalam R (1R = jarak ke Stop), sebelum biaya. Di bawah 0 = rencana ini rugi rata-rata.": "Average result per plan in R (1R = distance to the Stop), before costs. Below 0 = this plan loses on average.",
+    "Rata-rata rugi saat kena Stop. Lebih dalam dari −1R karena keluar di close/gap, bukan tepat di Stop.": "Average loss when the Stop is hit. Deeper than −1R because the exit is at the close/gap, not exactly at the Stop.",
+    "Tren": "Trend", "Pola chart": "Chart pattern", "Lokasi": "Location", "Volatilitas": "Volatility",
     "Searah: skor tinggi diikuti hasil lebih baik daripada skor rendah ({x} poin dalam 20 hari). Skor berguna sebagai penyaring tren.":
       "Consistent: high scores were followed by better results than low scores ({x} points over 20 days). Useful as a trend filter.",
     "Berlawanan: skor rendah justru sering diikuti pantulan ({x} poin). Di pasar ini skor bearish lebih cocok dibaca sebagai jenuh jual, bukan alasan menjual.":

@@ -237,9 +237,11 @@
     $("#vRs").innerHTML = rsHtml(d.rs);
     $("#vRiwayat").hidden = true;
     muatRiwayat(d);
+    muatSemuaTf(d);
     // Rencana tindakan (tanpa data posisi: Cek aset terpisah dari portofolio)
     const ra = d.rencana_aksi;
     $("#secAksi").hidden = !(ra && ra.langkah);
+    $("#aksiTf").textContent = "· " + labelTf(d.tf);
     if (ra && ra.langkah) { $("#aksiPill").outerHTML = sikapPill(ra).replace('class="pill', 'id="aksiPill" class="pill'); $("#aksi").innerHTML = aksiHtml(ra, { posisi: false }); }
     // Analisa tertulis
     $("#secNarasi").hidden = !d.narasi;
@@ -335,11 +337,55 @@
   });
   pilihTab(simpan.get("at.tab") || "ringkas");
 
+  // Kesimpulan semua timeframe (1H, 4H, 1D, 1W, 1M) + skor gabungan + saran. Tidak bergantung timeframe yang dibuka,
+  // jadi disimpan 2 menit per aset supaya ganti timeframe tidak menarik ulang.
+  let nomorSemua = 0;
+  const cacheSemua = new Map();
+  async function muatSemuaTf(d) {
+    const nomor = ++nomorSemua, kunci = `${d.kode}|${d.pasar}|${ATB.lang}`;
+    $("#vGab").hidden = true;
+    let h = cacheSemua.get(kunci);
+    if (!h || Date.now() - h.waktu > 120000) {
+      $("#secSemua").hidden = false;
+      $("#semua").innerHTML = `<p class="muted"><span class="spinner" aria-hidden="true" style="display:inline-block;width:14px;height:14px;vertical-align:-2px;margin-right:6px"></span>${t("Menghitung semua timeframe…")}</p>`;
+      $("#semuaPill").className = "pill"; $("#semuaPill").textContent = "";
+      try {
+        const j = await (await fetch(`/api/semua_tf?q=${encodeURIComponent(d.kode)}&pasar=${encodeURIComponent(d.pasar || "")}&bahasa=${ATB.lang}`)).json();
+        if (!j.ok) throw new Error(j.pesan || "");
+        h = { waktu: Date.now(), j };
+        cacheSemua.set(kunci, h);
+      } catch {
+        if (nomor === nomorSemua) { $("#secSemua").hidden = true; $("#vMtf").hidden = false; }
+        return;
+      }
+    }
+    if (nomor !== nomorSemua) return;
+    tampilSemuaTf(h.j, d.tf);
+  }
+  function tampilSemuaTf(j, tfAktif) {
+    const kelas = (s) => (s >= 20 ? "long" : s <= -20 ? "short" : "wait");
+    $("#vGab").innerHTML = `<span>${t("Skor semua timeframe")}</span> <span class="num ${cls(j.skor)}">${skorTxt(j.skor)}</span> <span class="${cls(j.skor)}">${esc(j.label)}</span>`;
+    $("#vGab").title = t("Rata-rata tertimbang skor 1H, 4H, 1D, 1W, dan 1M");
+    $("#vGab").hidden = false;
+    $("#semuaPill").className = "pill " + kelas(j.skor);
+    $("#semuaPill").textContent = `${skorTxt(j.skor)} · ${j.label}`;
+    const bobot = j.bobot || {};
+    const baris = (j.tf || []).map((b) => `<tr class="${b.tf === tfAktif ? "aktif" : ""}"><td class="tf">${esc(b.nama)}</td><td class="sk ${cls(b.skor)}">${skorTxt(b.skor)}</td><td class="${cls(b.skor)}">${esc(b.label)}${b.berjalan ? ` <span class="faint" title="${t("Candle terakhir belum selesai")}">·</span>` : ""}</td><td class="ra">${ist(b.ringkas || "")}</td></tr>`).join("");
+    const ket = Object.entries(bobot).map(([tf, w]) => `${labelTf(tf)} ${Math.round(w * 100)}%`).join(" · ");
+    $("#semua").innerHTML = `<table class="mtf" aria-label="${t("Skor dan rencana per timeframe")}">${baris}</table>
+      <p class="kes">${ist(j.kesimpulan)}</p>
+      <h3>${t("Saran")}</h3>
+      <ul class="saran">${(j.saran || []).map((x, i, a) => `<li class="${i === a.length - 1 ? "risiko" : ""}">${ist(x)}</li>`).join("")}</ul>
+      <p class="note">${esc(t("Skor gabungan = rata-rata tertimbang ({ket}). Level saran dari timeframe 1D. Rencana otomatis adalah peta level, bukan sinyal pasti: di uji data lama hasil rata-ratanya belum positif.", { ket }))}</p>`;
+    $("#secSemua").hidden = false;
+    $("#vMtf").hidden = true;  // tabel lama (timeframe aktif + satu di atasnya) sudah tercakup di sini
+  }
+
   let nomorRiwayat = 0;
   async function muatRiwayat(d) {
     const nomor = ++nomorRiwayat;
     try {
-      const h = await (await fetch(`/api/riwayat?q=${encodeURIComponent(d.kode)}&tf=${encodeURIComponent(d.tf)}&bahasa=${ATB.lang}`)).json();
+      const h = await (await fetch(`/api/riwayat?q=${encodeURIComponent(d.kode)}&tf=${encodeURIComponent(d.tf)}&pasar=${encodeURIComponent(d.pasar || "")}&bahasa=${ATB.lang}`)).json();
       if (nomor !== nomorRiwayat || !h.ok || !h.titik || h.titik.length < 2) return;
       const titik = h.titik[h.titik.length - 1][1] === h.skor ? h.titik : h.titik.concat([[0, h.skor]]);
       const satuan = t({ "1d": "hari", "1wk": "minggu", "1mo": "bulan" }[d.tf] || "bar");
@@ -571,7 +617,7 @@
     [S.sma20, S.sma50, S.sma200].forEach((a, i) => { G.ma[i].applyOptions({ visible: overlays.ma, priceFormat: pf }); G.ma[i].setData(penuh(t, a)); });
     [S.bb_upper, S.bb_lower].forEach((a, i) => { G.bb[i].applyOptions({ visible: overlays.bb, priceFormat: pf }); G.bb[i].setData(penuh(t, a)); });
     // Panah kecil = pola candlestick kuat di 60 bar terakhir
-    const markers = overlays.pat ? (S.candles_all || []).filter((x) => x.i >= n - 60 && x.bias !== 0 && x.strength >= 2)
+    const markers = overlays.pat ? (S.candles_panah || S.candles_all || []).filter((x) => x.i >= n - 60 && x.bias !== 0 && x.strength >= 2)
       .map((x) => ({ time: t[x.i], position: x.bias > 0 ? "belowBar" : "aboveBar", color: x.bias > 0 ? C.bull : C.bear, shape: x.bias > 0 ? "arrowUp" : "arrowDown" })) : [];
     markers.sort((a, b) => a.time - b.time);
     G.cs.setMarkers(markers);
@@ -720,8 +766,8 @@
     const sudahTampil = fasePindaiDimuat;
     fasePindaiDimuat = false;
     if (p.ok) { toast(t("Pemindaian selesai.")); umumkan(t("Pemindaian portofolio selesai.")); }
-    if (!sudahTampil || !p.ok) muatPortofolio(true);
-    else { const info = $("#pindaiInfo"), btn = $("#btnPindai"); if (info) info.textContent = ""; if (btn) btn.disabled = false; portoCache = null; }
+    // Muat ulang juga bila hasil fase 1 sudah tampil: riwayat skor 30 hari baru dihitung di fase 2.
+    muatPortofolio(true);
   }
   async function pindai() {
     const r = await fetch("/api/pindai", { method: "POST", headers: { "X-Panel": "1" } });

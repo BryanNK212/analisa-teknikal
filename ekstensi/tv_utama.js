@@ -164,11 +164,15 @@
       ps = c.getPanes()[pu.idx].getMainSourcePriceScale();
       ts = c.getTimeScale();
       rentang = ps.getVisiblePriceRange();
-      geser = typeof c.getTimeScaleLogicalRange === "function" ? JSON.stringify(c.getTimeScaleLogicalRange()) : `${ts.coordinateToTime(0)}:${performance.now() >> 6}`;
+      geser = typeof c.getTimeScaleLogicalRange === "function" ? JSON.stringify(c.getTimeScaleLogicalRange())
+        : typeof ts.getVisibleLogicalRange === "function" ? JSON.stringify(ts.getVisibleLogicalRange()) : null;
     } catch { return; }
     if (!ps || !ts || !rentang) return;
     const w = pu.el.clientWidth, h = pu.el.clientHeight, dpr = window.devicePixelRatio || 1;
     if (!(w > 0) || !(h > 0)) return;
+    // Tanpa API rentang: pakai waktu bar di kedua tepi + detak ±0,5 detik untuk geseran di bawah satu bar.
+    // (1.11: dulu detaknya 64 ms, sehingga chart yang diam pun digambar ulang ~15× per detik.)
+    if (geser == null) geser = `${ts.coordinateToTime(0)}:${ts.coordinateToTime(w - 1)}:${performance.now() >> 9}`;
     const widget = pu.el.closest(".chart-widget");
     const gelap = !!widget && /themed-dark/.test(widget.className);
     const t = [w, h, pu.sumbu ? pu.sumbu.clientWidth : 0, dpr, rentang.from, rentang.to, ps.getMode && ps.getMode(), ps.isInverted && ps.isInverted(), ts.barSpacing(), geser, gelap, data.versi].join("|");

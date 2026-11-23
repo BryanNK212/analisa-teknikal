@@ -52,8 +52,8 @@ import ta_engine as te  # noqa: E402
 import wawasan as ws  # noqa: E402
 import bahasa as bh  # noqa: E402
 
-VERSI = "1.3"
-CHART_VERSI = "6"  # naikkan bila gaya chart PNG berubah, supaya semua chart digambar ulang sekali
+VERSI = "1.4"
+CHART_VERSI = "8"  # naikkan bila gaya chart PNG berubah, supaya semua chart digambar ulang sekali
 TICKER_KURS = "USDIDR=X"
 WIB = timezone(timedelta(hours=7))
 
@@ -467,7 +467,7 @@ def analisa_aset(tk: str, b: dict, pos: dict | None, sektor: str, kurs: float, b
     mk = pasar_dari_ticker(tk)
     sym = nama_tampil(tk)
     berjalan = fraksi_berjalan(tk, mk, b["t"][-1], "1d")
-    r = te.analyze_mtf(te.auto_mtf(b, "1d"), symbol=sym, market=mk, primary="1d", include_series=seri, live_frac=berjalan)
+    r = te.analyze_mtf(te.auto_mtf(b, "1d", mk), symbol=sym, market=mk, primary="1d", include_series=seri, live_frac=berjalan)
     harga = r["price"]
     info = {
         "ticker": tk, "simbol": sym, "pasar": mk, "kelas": KELAS[mk], "sektor": sektor,

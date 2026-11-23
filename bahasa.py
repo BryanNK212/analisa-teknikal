@@ -259,6 +259,8 @@ _KALIMAT = [
      "For investors this means avoid buying / reduce the position (short only through a broker that allows it, with a stop above resistance)."),
     (r"Untuk kripto bisa short \(futures\) dengan stop di atas resistance; untuk spot artinya hindari beli / kurangi posisi\.",
      "In crypto you can short (futures) with a stop above resistance; for spot this means avoid buying / reduce the position."),
+    (r"Tekanan turun dominan: hindari beli / kurangi posisi\.",
+     "Selling pressure dominates: avoid buying / reduce the position."),
     (r"Pertimbangkan beli kembali hanya jika harga bertahan di support (\S+) dan muncul sinyal pembalikan\.",
      r"Consider buying back only if price holds support \1 and a reversal signal appears."),
     (r"Sinyal belum searah\. Skenario naik valid jika close di atas (\S+); skenario turun jika close di bawah (\S+)\. "
@@ -584,6 +586,7 @@ def narasi_en(r: dict, simbol: str, bendera: list | None = None, rs: dict | None
 
 _PESAN = [
     (r"^Isi ticker dulu, mis\. BBCA, NVDA, BTC, atau IDX:TLKM\.$", "Enter a ticker first, e.g. BBCA, NVDA, BTC, or IDX:TLKM."),
+    (r"^Ticker tidak valid\. Contoh: BBCA, NVDA, BTC, atau IDX:TLKM\.$", "Invalid ticker. Examples: BBCA, NVDA, BTC, or IDX:TLKM."),
     (r"^Mode offline: (.+) tidak ada di cache harga\.$", r"Offline mode: \1 is not in the price cache."),
     (r"^Ticker tidak ditemukan atau data tidak tersedia \((.+?)\)\. Rincian: (.*)$", r"Ticker not found or no data available (\1). Details: \2"),
     (r"^Data (.+) terlalu sedikit \((\d+) bar\) untuk timeframe (.+)\.$", r"Not enough data for \1 (\2 bars) on the \3 timeframe."),
@@ -719,3 +722,51 @@ def rencana_aksi_en(r: dict, dekat: dict | None = None, pos: dict | None = None)
     mk = r["market"]
     return ws.rencana_aksi(r, dekat, pos, T=T_AKSI_EN, fp=lambda x: fp(x, mk),
                            pct=lambda x, tanda=True: persen(x, tanda=tanda), num=lambda x, d=1: angka(x, d))
+
+
+# ------------------------------------------------------------------
+# Kesimpulan semua timeframe (padanan wawasan.kesimpulan_semua_tf)
+# ------------------------------------------------------------------
+
+T_SEMUA_EN = {
+    "semua_naik": "Every timeframe points up: a strong, healthy trend from short to long term.",
+    "naik_rehat": "The big trend is up; the daily/short term is resting (consolidating) with no sign of a reversal yet.",
+    "koreksi_dalam_naik": "The big trend (weekly/monthly) is up, but the daily/short term is pulling back.",
+    "naik_awal": "Starting to strengthen from below: daily and short term are up, the big trend hasn't followed yet.",
+    "semua_turun": "Every timeframe points down: selling pressure dominates across all horizons.",
+    "turun_rehat": "The big trend is down; the daily/short term is holding for now, with no sign of a reversal yet.",
+    "pantul_dalam_turun": "The big trend (weekly/monthly) is down, but the daily/short term is bouncing.",
+    "turun_awal": "Starting to weaken: daily and short term are down, the big trend hasn't turned down yet.",
+    "campur": "Timeframes disagree or are neutral: no clear direction yet.",
+    "s_semua_naik": ["Existing positions can be held while the daily close stays above {batal}.",
+                     "Don't chase new buys; wait for a pullback to {zona}."],
+    "s_naik_rehat": ["Hold positions; adding is safest near support {s1} ({s1_jarak}).",
+                     "The uptrend resumes on a daily close above {r1}."],
+    "s_koreksi_dalam_naik": ["A pullback inside an uptrend can be a chance to buy gradually near {s1} ({s1_jarak}).",
+                             "Wait for a turn on the small timeframes (4H/1H score back to ≥ +20) before entering; cancel on a daily close below {batal}."],
+    "s_naik_awal": ["The reversal up is still early: if you enter, start small and add once the 1W score is above +20 too.",
+                    "Cancel if the daily close falls back below {s1}."],
+    "s_semua_turun": ["Avoid new buys; consider reducing existing positions.",
+                      "The trend is considered to have turned on a daily close above {konfirmasi} with an improving 1W score."],
+    "s_turun_rehat": ["No reversal yet: avoid buying while price is below {r1}.",
+                      "If support {s1} breaks, the decline is likely to continue."],
+    "s_pantul_dalam_turun": ["A bounce inside a downtrend: don't chase it; a rise towards {r1} can be used to reduce positions.",
+                             "For new buys, wait for the 1W score to rise above +20 too."],
+    "s_turun_awal": ["Protect positions: the weakness continues on a daily close below {s1}.",
+                     "Don't add until the daily close is back above {r1}."],
+    "s_campur": ["Wait for direction: a daily close above {naik} = bullish case, below {turun} = bearish case.",
+                 "If you still enter, keep the size small with a clear stop."],
+    "s_risiko": "Size positions from the distance to the stop (e.g. a maximum loss of 1–2% of capital per position).",
+    "tanpa_level": "-",
+}
+
+
+def kesimpulan_semua_tf_en(hasil: dict) -> dict:
+    mk = next(iter(hasil.values()))["market"]
+    k = ws.kesimpulan_semua_tf(hasil, T=T_SEMUA_EN, fp=lambda x: fp(x, mk), pct=lambda x: persen(x),
+                               rencana=lambda r: rencana_aksi_en(r))
+    k["label"] = LABEL.get(k["label"], k["label"])
+    for b in k["tf"]:
+        b["label"] = LABEL.get(b["label"], b["label"])
+        b["tren"] = TREN.get(b["tren"], b["tren"])
+    return k

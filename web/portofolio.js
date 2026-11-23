@@ -177,7 +177,9 @@
   // tidak mengubah skor (keterangan saja) diredupkan dan dilipat.
   function poinSkor(sinyal, skor) {
     const total = (sinyal || []).reduce((s, x) => s + (x.score || 0), 0);
-    return Math.abs(total) < 0.05 ? () => 0 : (v) => (v * skor) / total;
+    // Dekat nol (sinyal besar yang saling meniadakan): pakai kemiringan skala skor (skor ≈ 10 × mentah), supaya
+    // batangnya tetap terlihat dan tidak membesar berlipat-lipat karena pembulatan.
+    return Math.abs(total) < 0.5 ? (v) => v * 10 : (v) => (v * skor) / total;
   }
   function sinyalHtml(sinyal, skor) {
     const ke = poinSkor(sinyal, skor);
@@ -276,7 +278,7 @@
         <dt>S1 · R1</dt><dd>${t("Support (lantai) dan resistance (atap) terdekat, dengan jaraknya dari harga. Label dekat = dalam 0,6 ATR.")}</dd>
         <dt>${t("Sinyal & langkah")}</dt><dd>${t("Tanda terpenting (Baru = belum ada di pindai sebelumnya) dan rencana tindakan singkat (→).")}</dd>
       </dl></details>
-      ${ujiSkorHtml(data.uji_skor)}
+      ${ujiSkorHtml(data.uji_skor, data.mesin)}
       ${pantauSaja ? "" : `<h2>${t("Skor per sektor")} <span class="muted">${t("ditimbang nilai posisi")}</span></h2>
       <div class="tblwrap"><table class="tbl" id="tblSektor"><thead><tr><th><span>${t("Sektor")}</span></th><th class="r"><span>${t("Posisi")}</span></th><th class="r"><span>${t("Nilai")}</span></th><th class="r"><span>${t("Porsi")}</span></th><th style="width:34%"><span>bearish · bullish</span></th><th class="r"><span>${t("Skor")}</span></th></tr></thead><tbody>${sektorRows(aset, total)}</tbody></table></div>`}
       ${!pantauSaja && (data.pantauan || []).length ? `<h2>${t("Pantauan")} <span class="muted">${t("belum dipegang")}</span></h2><div class="tblwrap"><table class="tbl" id="tblPantau"><tbody>${data.pantauan.map((a) => `<tr class="row" data-t="${esc(a.ticker)}" tabindex="0"><td><span class="sym">${esc(a.simbol)}</span><span class="sek">${esc(a.sektor)}</span></td><td class="r num">${esc(fp(a.harga, a.pasar))}</td><td class="r"><span class="badge ${cls(a.skor)}">${skorTxt(a.skor)}</span></td><td>${esc(a.label)}</td><td class="chev">${icon("chev")}</td></tr>`).join("")}</tbody></table></div>` : ""}
@@ -373,6 +375,10 @@
       const a = aset.find((x) => x.ticker === t) || (data.pantauan || []).find((x) => x.ticker === t);
       if (a) tr.insertAdjacentHTML("afterend", detailStatis(a));
     }
+    // Elemen yang sama dirender ulang setelah tiap pindai: lepas pendengar lama dulu supaya satu klik tidak terhitung berkali-kali.
+    if (el._atLepas) el._atLepas.abort();
+    el._atLepas = new AbortController();
+    const sinyal = { signal: el._atLepas.signal };
     el.addEventListener("click", (e) => {
       const hi = e.target.closest("[data-hari]");
       if (hi) {
@@ -382,12 +388,12 @@
         return;
       }
       const tr = e.target.closest("tr.row"); if (tr) buka(tr);
-    });
+    }, sinyal);
     el.addEventListener("keydown", (e) => {
       if (e.key !== "Enter" && e.key !== " ") return;
       const tr = e.target.closest("tr.row");
       if (tr && e.target === tr) { e.preventDefault(); buka(tr); }
-    });
+    }, sinyal);
     // pulihkan tampilan tombol saringan/urutan dari keadaan sebelumnya
     el.querySelectorAll(".filters .chip").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.kelas === filter.kelas)));
     el.querySelector("#fPerlu").checked = !!filter.hanyaPerlu;
@@ -434,7 +440,8 @@
   }
 
   // "Seberapa andal skor ini?" — hasil uji_skor.py: return 20 hari sesudah tiap kelompok skor, per pasar.
-  function ujiSkorHtml(U) {
+  const ASET_MIN = 10;  // di bawah ini kesimpulan otomatis hanya ditulis sebagai petunjuk (hari-harinya tumpang tindih)
+  function ujiSkorHtml(U, mesin) {
     if (!U || !U.pasar) return "";
     const NAMA = { idx: t("Saham IDX"), us: t("Saham/ETF AS"), crypto: t("Kripto") };
     const kel = ((U.pasar.idx || U.pasar.semua || {}).h20 || {}).kelompok || [];
@@ -447,13 +454,16 @@
       return [t("Lemah: hampir tidak ada beda hasil antara skor tinggi dan rendah. Jangan mengandalkan skor saja."), "flat"];
     };
     const baris = ["idx", "us", "crypto"].filter((k) => U.pasar[k]).map((k) => {
-      const b = U.pasar[k], [v, c] = vonis(b);
+      const b = U.pasar[k];
+      let [v, c] = vonis(b);
+      if (b.h20.sebaran != null && (b.aset || 0) < ASET_MIN) { v = t("Sampel kecil ({n} aset), anggap petunjuk saja:", { n: b.aset || 0 }) + " " + v; c = "flat"; }
       const sel = b.h20.kelompok.map((x) => x.n ? `<td class="r num ${x.n < 30 ? "faint" : x.rata > 0.05 ? "up" : x.rata < -0.05 ? "down" : "flat"}" title="${t("{n} hari · naik {p}% dari waktu", { n: x.n, p: num(x.naik_pct, 0) })}">${pct(x.rata)}</td>` : `<td class="r faint">—</td>`).join("");
       return `<tr><th scope="row">${NAMA[k]}<span class="muted"> · ${t("{n} aset", { n: b.aset })}</span></th>${sel}<td class="r num faint">${pct(b.h20.dasar.rata)}</td></tr>
         <tr class="vonis-uji"><td colspan="${kel.length + 2}"><span class="${c}">${c === "up" ? icon("trend-up", "sm") : c === "down" ? icon("trend-down", "sm") : icon("flat", "sm")}</span> ${esc(v)}</td></tr>`;
     }).join("");
     return `<section class="ujiskor"><h2>${t("Seberapa andal skor ini?")} <span class="muted">${t("uji pada data lama · {dari} – {sampai}", { dari: esc(U.dari || ""), sampai: esc(U.sampai || "") })}</span></h2>
       <p class="muted">${t("Rata-rata perubahan harga 20 hari bursa sesudah skor berada di kelompok tertentu. Skor dihitung hanya dari data sampai hari itu.")}</p>
+      ${mesin && U.versi_mesin && mesin !== U.versi_mesin ? `<p class="down">${esc(t("Uji ini dibuat dengan mesin {a}, sedangkan mesin sekarang {b}. Hitung ulang: python3 uji_skor.py", { a: U.versi_mesin, b: mesin }))}</p>` : ""}
       <div class="tbl-wrap"><table class="uji"><thead><tr><th>${t("Pasar")}</th>${kepala}<th class="r">${t("semua hari")}</th></tr></thead><tbody>${baris}</tbody></table></div>
       ${ujiKategoriHtml(U, NAMA)}${ujiRencanaHtml(U, NAMA)}
       <p class="hsisa">${t("Sampel hanya aset yang pernah dipindai, hari-harinya tumpang tindih, dan tanpa biaya transaksi: gambaran kasar, bukan bukti. Hitung ulang: python3 uji_skor.py")}</p></section>`;
@@ -467,7 +477,7 @@
     const sel = (x) => (x && x.beda != null
       ? `<td class="r num ${x.beda >= 1 ? "up" : x.beda <= -1 ? "down" : "flat"}" title="${t("bullish {a} hari · bearish {b} hari", { a: x.n_bull, b: x.n_bear })}">${num(x.beda, 1, true)}</td>`
       : `<td class="r faint" title="${t("Sampel terlalu sedikit.")}">—</td>`);
-    const baris = nama.map((n, i) => `<tr><th scope="row">${esc(n)}</th>${pasar.map((k) => sel(U.pasar[k].kategori[i])).join("")}</tr>`).join("");
+    const baris = nama.map((n, i) => `<tr><th scope="row">${esc(t(n))}</th>${pasar.map((k) => sel(U.pasar[k].kategori[i])).join("")}</tr>`).join("");
     return `<h3 class="uji-h">${t("Sinyal mana yang berguna?")}</h3>
       <p class="muted">${t("Perubahan harga 20 hari saat kategori sinyal itu bullish dikurangi saat bearish (poin persen). Positif (hijau) = searah dengan hasil; sekitar nol atau merah = di pasar itu kategori ini tidak membantu.")}</p>
       <div class="tbl-wrap"><table class="uji sempit"><thead><tr><th>${t("Kategori sinyal")}</th>${pasar.map((k) => `<th class="r">${NAMA[k]}</th>`).join("")}</tr></thead><tbody>${baris}</tbody></table></div>`;
@@ -477,17 +487,20 @@
     const pasar = ["idx", "us", "crypto"].filter((k) => U.pasar[k] && U.pasar[k].rencana);
     if (!pasar.length) return "";
     const p0 = (x, k) => (x && x.n >= 30 ? num(x[k], 0) + "%" : "—");
+    const r0 = (x, k) => (x && x.n >= 30 && x[k] != null ? `${num(x[k], 2, true)}R` : "—");
+    const kr = (x) => (x == null ? "faint" : x > 0.02 ? "up" : x < -0.02 ? "down" : "flat");
     const baris = pasar.map((k) => {
       const r = U.pasar[k].rencana, b = r.beli || {}, h = r.hindari || {};
       return `<tr><th scope="row">${NAMA[k]}</th>
         <td class="r num up" title="${t("{n} hari", { n: b.n || 0 })}">${p0(b, "target")}</td><td class="r num down">${p0(b, "stop")}</td><td class="r num faint">${p0(b, "belum")}</td>
+        <td class="r num ${kr(b.rata_r)}">${r0(b, "rata_r")}</td><td class="r num down">${r0(b, "rugi_stop_r")}</td>
         <td class="r num down gar" title="${t("{n} hari", { n: h.n || 0 })}">${p0(h, "turun")}</td><td class="r num up">${p0(h, "naik")}</td><td class="r num faint">${p0(h, "belum")}</td></tr>`;
     }).join("");
     return `<h3 class="uji-h">${t("Seberapa sering rencananya terjadi?")}</h3>
       <p class="muted">${t("Dari semua hari ketika rencana itu muncul: mana yang lebih dulu terjadi dalam {n} bar sesudahnya.", { n: U.horison_rencana || 40 })}</p>
       <div class="tbl-wrap"><table class="uji"><thead>
-        <tr><th rowspan="2">${t("Pasar")}</th><th colspan="3" class="grp">${t("Di area beli")}</th><th colspan="3" class="grp gar">${t("Belum saatnya beli")}</th></tr>
-        <tr><th class="r">${t("target 1 dulu")}</th><th class="r">${t("stop dulu")}</th><th class="r">${t("belum keduanya")}</th><th class="r gar">${t("turun ke target turun 1")}</th><th class="r">${t("konfirmasi naik dulu")}</th><th class="r">${t("belum keduanya")}</th></tr>
+        <tr><th rowspan="2">${t("Pasar")}</th><th colspan="5" class="grp">${t("Di area beli")}</th><th colspan="3" class="grp gar">${t("Belum saatnya beli")}</th></tr>
+        <tr><th class="r">${t("target 1 dulu")}</th><th class="r">${t("stop dulu")}</th><th class="r">${t("belum keduanya")}</th><th class="r" title="${t("Hasil rata-rata per rencana dalam R (1R = jarak ke Stop), sebelum biaya. Di bawah 0 = rencana ini rugi rata-rata.")}">${t("rata-rata R")}</th><th class="r" title="${t("Rata-rata rugi saat kena Stop. Lebih dalam dari −1R karena keluar di close/gap, bukan tepat di Stop.")}">${t("rugi kena stop")}</th><th class="r gar">${t("turun ke target turun 1")}</th><th class="r">${t("konfirmasi naik dulu")}</th><th class="r">${t("belum keduanya")}</th></tr>
       </thead><tbody>${baris}</tbody></table></div>`;
   }
 

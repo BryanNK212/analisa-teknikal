@@ -64,7 +64,7 @@
         <option value="crypto" data-i18n>Kripto</option>
       </select>
       <div class="seg" id="tfSeg" role="group" aria-label="Timeframe">
-        <button type="button" data-tf="5m" aria-pressed="false">5m</button><button type="button" data-tf="15m" aria-pressed="false">15m</button><button type="button" data-tf="1h" aria-pressed="false">1h</button><button type="button" data-tf="4h" aria-pressed="false">4h</button><button type="button" data-tf="1d" aria-pressed="true">1D</button><button type="button" data-tf="1wk" aria-pressed="false">1W</button><button type="button" data-tf="1mo" aria-pressed="false">1M</button>
+        <button type="button" data-tf="5m" aria-pressed="false">5m</button><button type="button" data-tf="15m" aria-pressed="false">15m</button><button type="button" data-tf="30m" aria-pressed="false">30m</button><button type="button" data-tf="1h" aria-pressed="false">1h</button><button type="button" data-tf="4h" aria-pressed="false">4h</button><button type="button" data-tf="1d" aria-pressed="true">1D</button><button type="button" data-tf="1wk" aria-pressed="false">1W</button><button type="button" data-tf="1mo" aria-pressed="false">1M</button>
       </div>
       <button class="btn primary" id="btnAnalisa" type="submit" data-i18n>Analisa</button>
       <div class="recent" id="recent"></div>
@@ -132,6 +132,7 @@
             <div class="score" id="vScore"></div>
             <div><div class="label" id="vLabel"></div><div class="trend" id="vTrend"></div></div>
           </div>
+          <p class="gab" id="vGab" hidden></p>
           <p class="konf" id="vKonf" hidden></p>
           <p class="live-note" id="vLive" hidden></p>
         </section>
@@ -141,7 +142,8 @@
           <button type="button" role="tab" id="tab-sinyal" aria-controls="tp-sinyal" aria-selected="false" tabindex="-1" data-i18n>Sinyal</button>
         </div>
         <div class="tabpanel" id="tp-ringkas" role="tabpanel" aria-labelledby="tab-ringkas" tabindex="0">
-          <section class="sec aksi" id="secAksi" hidden><h2><span data-i18n>Rencana tindakan</span> <span class="pill" id="aksiPill"></span></h2><div id="aksi"></div></section>
+          <section class="sec semua" id="secSemua" hidden><h2><span data-i18n>Kesimpulan semua timeframe</span> <span class="pill" id="semuaPill"></span></h2><div id="semua"></div></section>
+          <section class="sec aksi" id="secAksi" hidden><h2><span data-i18n>Rencana tindakan</span> <span class="muted" id="aksiTf"></span> <span class="pill" id="aksiPill"></span></h2><div id="aksi"></div></section>
           <section class="sec" id="secNarasi" hidden><h2 data-i18n="Analisa tertulis">Analisa</h2><div class="narasi" id="narasi"></div></section>
           <section class="sec" id="secFlag" hidden><h2 data-i18n>Perlu diperhatikan</h2><ul class="items" id="flags"></ul></section>
           <section class="sec" id="secTf" hidden><h2 data-i18n>Per timeframe</h2>

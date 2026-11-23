@@ -23,28 +23,28 @@ for butuh in "numpy, yfinance" "numpy"; do
 done
 [ -n "$PY" ] || { pesan "Belum ada python3 dengan numpy. Pasang Python dari python.org, lalu di Terminal jalankan: pip3 install numpy yfinance matplotlib"; exit 1; }
 
-# Pembaruan otomatis dari GitHub (perbarui.py; rilis.json -> repo). Folder sumber (dengan buat_paket.py)
-# tidak pernah diperbarui. Tanpa internet: dilewati, program jalan dengan versi yang ada.
-mkdir -p "$FOLDER/output"
-[ -f "$FOLDER/perbarui.py" ] && "$PY" "$FOLDER/perbarui.py" >> "$FOLDER/output/perbarui.log" 2>&1
-
-# Panel lama di port ini dimatikan dulu supaya yang jalan selalu versi terbaru.
+# Panel lama di port ini dimatikan dulu (sebelum pembaruan, supaya berkasnya tidak sedang dipakai).
 for pid in $(lsof -ti tcp:$PORT -sTCP:LISTEN 2>/dev/null); do
   ps -p "$pid" -o command= | grep -q "panel.py" && kill "$pid"
 done
 sleep 0.4
+
+# Pembaruan otomatis dari GitHub (perbarui.py; rilis.json -> repo). Folder sumber (dengan buat_paket.py)
+# tidak pernah diperbarui. Tanpa internet: dilewati, program jalan dengan versi yang ada.
+mkdir -p "$FOLDER/output"
+[ -f "$FOLDER/perbarui.py" ] && "$PY" "$FOLDER/perbarui.py" >> "$FOLDER/output/perbarui.log" 2>&1
 
 mkdir -p "$FOLDER/output"
 cd "$FOLDER"
 nohup "$PY" panel.py --port $PORT --no-browser > "$FOLDER/output/panel.log" 2>&1 &
 
 for i in $(seq 1 120); do
-  if ST="$(curl -s "http://127.0.0.1:$PORT/api/status")" && [ -n "$ST" ]; then
+  if ST="$(curl -s --noproxy '*' "http://127.0.0.1:$PORT/api/status")" && [ -n "$ST" ]; then
     # Belum ada portofolio maupun daftar pantau (mis. baru dipasang): langsung ke Cek aset, tanpa pindai.
-    if echo "$ST" | grep -q '"portofolio": "kosong"'; then
+    if echo "$ST" | grep -Eq '"portofolio"[[:space:]]*:[[:space:]]*"kosong"'; then
       open "http://127.0.0.1:$PORT/"
     else
-      curl -s -o /dev/null -X POST -H "X-Panel: 1" "http://127.0.0.1:$PORT/api/pindai"
+      curl -s --noproxy '*' -o /dev/null -X POST -H "X-Panel: 1" "http://127.0.0.1:$PORT/api/pindai"
       open "http://127.0.0.1:$PORT/#portofolio"
     fi
     exit 0

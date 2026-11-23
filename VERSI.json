@@ -1,10 +1,10 @@
 {
-  "id": "dc07225f47a2",
-  "tanggal": "19-11-2026 11:38",
-  "program": "1.3",
-  "mesin": "1.3.0",
-  "ekstensi": "1.10",
-  "ekstensi_sidik": "0d53c4590851",
+  "id": "67adac51b42c",
+  "tanggal": "23-11-2026 17:38",
+  "program": "1.4",
+  "mesin": "1.4.0",
+  "ekstensi": "1.11",
+  "ekstensi_sidik": "e550b1fc9d31",
   "berkas": [
     ".gitattributes",
     "Analisa Teknikal (Windows).bat",
