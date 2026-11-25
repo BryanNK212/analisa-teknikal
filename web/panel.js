@@ -229,6 +229,9 @@
     $("#vTrend").innerHTML = ist(`${r.trend.label} · ${r.trend.structure}`);  // istilah: arti awam saat disorot
     // Skor beli 0–100 (dari data harian, sama dengan kolom Beli di tab Portofolio dan kartu ekstensi)
     $("#vBeli").innerHTML = beliHtml(d.skor_beli); $("#vBeli").hidden = !d.skor_beli;
+    // Analisa Fundamental (program terpisah, hanya saham IDX, hanya bila foldernya ada). Belum tampil di panel samping ekstensi.
+    const fu = !EMBED && d.fundamental && window.ATFund ? window.ATFund.kotak(d.fundamental) : "";
+    $("#vFund").innerHTML = fu; $("#vFund").hidden = !fu;
     const konf = r.mtf && r.mtf.confluence;
     $("#vKonf").hidden = !konf; $("#vKonf").innerHTML = ist(konf || "");
     const jalan = d.berjalan;
@@ -745,6 +748,7 @@
     } catch (e) {
       el.innerHTML = `<div class="state" style="position:static;min-height:300px"><div>${icon("warn", "big-ico")}<h2>${t("Portofolio tidak bisa dimuat")}</h2><p>${esc(e.message)}</p><div class="act"><button type="button" class="btn" id="btnMuatUlang">${icon("refresh")}${t("Coba lagi")}</button></div></div></div>`;
       $("#btnMuatUlang").addEventListener("click", () => muatPortofolio(true));
+      cobaLagi();  // dimuat ulang otomatis begitu panel menjawab
     }
   }
   let fasePindaiDimuat = false;
@@ -886,16 +890,33 @@
       pakaiBahasa(nilai);
     });
   });
-  let cekBahasa = 0;
+  let cekBahasa = 0, terhubung = false, cobaUlang = 0, tungguUlang = null, pulihTerakhir = 0;
+  // Panel belum menjawab (baru menyala / sempat mati): coba lagi tiap 2 detik s.d. 2 menit, lalu muat ulang
+  // tampilan yang sedang dibuka begitu tersambung, supaya tidak perlu menutup dan membuka peluncur lagi.
+  function cobaLagi() {
+    terhubung = false;
+    if (tungguUlang || cobaUlang >= 60) return;
+    cobaUlang++;
+    tungguUlang = setTimeout(() => { tungguUlang = null; cekStatus(); }, 2000);
+  }
+  function pulihkan() {
+    if (state.view === "porto") muatPortofolio(true);
+    else if (state.view === "ihsg") tampil("ihsg", { riwayat: null });
+    else if (state.q && !state.data) analisa();
+  }
+  window.ATCobaLagi = cobaLagi;
   function cekStatus() {
     const nomor = ++cekBahasa;
     return fetch("/api/status").then((r) => r.json()).then((s) => {
+      const pulih = !terhubung && cobaUlang > 0 && Date.now() - pulihTerakhir > 10000;  // tidak berputar bila tampilan tetap gagal
+      terhubung = true; cobaUlang = 0;
+      if (pulih) { pulihTerakhir = Date.now(); pulihkan(); }
       if (nomor !== cekBahasa) return;
       // Bahasa diganti di tempat lain (panel utama / panel samping): ikut berganti.
       if ((s.bahasa === "en" || s.bahasa === "id") && s.bahasa !== ATB.lang && !new URLSearchParams(location.search).get("bahasa")) return pakaiBahasa(s.bahasa);
       if (!state.data) setStatus(s.offline ? "warn" : "live", t(s.offline ? "Mode offline (cache)" : "Terhubung"));
       hitungIhsg(s.ihsg);
-    }).catch(() => { if (!state.data) setStatus("err", t("Panel lokal mati")); });
+    }).catch(() => { if (!state.data) setStatus("err", t("Panel lokal mati")); cobaLagi(); });
   }
   // Jumlah tanda baru Pemindai IHSG yang belum dilihat: angka di tab (panel utama) atau baris pengingat (panel samping).
   function hitungIhsg(r) {
@@ -916,4 +937,5 @@
   const h0 = new URLSearchParams(location.hash.slice(1));
   if (location.hash === "#portofolio" || location.hash === "#ihsg" || h0.get("q") || params.get("q")) bacaUrl();
   if (!state.q) { showState("start"); isiStart(); }
+  window.ATSiap = true;  // dibaca pengaman di panel.html (muat ulang otomatis bila ada skrip yang gagal dimuat)
 })();

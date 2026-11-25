@@ -34,7 +34,13 @@ if (-not $PyExe) {
 Get-CimInstance Win32_Process -Filter "Name like 'python%'" -ErrorAction SilentlyContinue |
   Where-Object { $_.CommandLine -like "*panel.py*--port $Port*" } |
   ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-Start-Sleep -Milliseconds 400
+# Tunggu sampai port benar-benar kosong; kalau tidak, panel baru gagal menyala dan halaman tidak termuat.
+for ($i = 0; $i -lt 20; $i++) {
+  $dengar = $null
+  try { $dengar = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue } catch { }
+  if (-not $dengar) { break }
+  Start-Sleep -Milliseconds 250
+}
 
 # Pembaruan otomatis dari GitHub (perbarui.py; rilis.json -> repo). Tanpa internet: dilewati.
 if (Test-Path (Join-Path $Folder "perbarui.py")) {
@@ -52,10 +58,12 @@ New-Item -ItemType Directory -Force -Path $Out | Out-Null
 $env:PYTHONDONTWRITEBYTECODE = "1"
 $env:PYTHONUTF8 = "1"
 $env:PYTHONIOENCODING = "utf-8"
-Start-Process -FilePath $PyExe -ArgumentList @("panel.py", "--port", "$Port", "--no-browser") -WorkingDirectory $Folder `
-  -WindowStyle Hidden -RedirectStandardOutput (Join-Path $Out "panel.log") -RedirectStandardError (Join-Path $Out "panel_galat.log")
+$Panel = Start-Process -FilePath $PyExe -ArgumentList @("-u", "panel.py", "--port", "$Port", "--no-browser") -WorkingDirectory $Folder `
+  -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $Out "panel.log") -RedirectStandardError (Join-Path $Out "panel_galat.log")
 
-for ($i = 0; $i -lt 120; $i++) {
+# Komputer yang baru dinyalakan bisa butuh puluhan detik untuk memuat Python + numpy: tunggu s.d. 90 detik.
+for ($i = 0; $i -lt 360; $i++) {
+  if ($Panel -and $Panel.HasExited) { break }
   $st = $null
   try { $st = Invoke-RestMethod -Uri "$Dasar/api/status" -TimeoutSec 2 -UseBasicParsing } catch { $st = $null }
   if ($st) {

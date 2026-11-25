@@ -52,7 +52,7 @@ import ta_engine as te  # noqa: E402
 import wawasan as ws  # noqa: E402
 import bahasa as bh  # noqa: E402
 
-VERSI = "1.4"
+VERSI = "1.5"
 CHART_VERSI = "9"  # naikkan bila gaya chart PNG berubah, supaya semua chart digambar ulang sekali
 TICKER_KURS = "USDIDR=X"
 WIB = timezone(timedelta(hours=7))

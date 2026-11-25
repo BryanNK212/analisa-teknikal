@@ -8,6 +8,32 @@
 (function (root) {
   "use strict";
   const EN = {
+    // ---------- Analisa Fundamental (kotak di Cek aset, kolom & kelompok di Pemindai IHSG) ----------
+    "Sangat kuat": "Very strong", "Kuat": "Strong", "Cukup": "Fair", "Buruk": "Poor",
+    "Berkualitas & murah": "Quality & cheap", "Berkualitas, harga wajar": "Quality, fair price", "Berkualitas tapi mahal": "Quality but expensive",
+    "Murah tapi lemah": "Cheap but weak", "Fundamental lemah": "Weak fundamentals", "Berkualitas": "Quality",
+    "Murah": "Cheap", "Agak murah": "Somewhat cheap", "Sekitar wajar": "Near fair", "Agak mahal": "Somewhat expensive", "Mahal": "Expensive",
+    "Kandidat beli": "Buy candidates", "Pantau": "Watch", "Trading saja": "Trading only", "Lewati dulu": "Skip for now",
+    "Tanpa skor beli": "No buy score", "Belum dinilai fundamental": "No fundamental score",
+    "fundamental kuat dan teknikal siap": "strong fundamentals and technicals ready",
+    "fundamental kuat, tunggu momen teknikal": "strong fundamentals, wait for the technical moment",
+    "teknikal bagus tetapi fundamental lemah: hanya untuk jangka pendek": "good technicals but weak fundamentals: short-term only",
+    "fundamental dan teknikal sama-sama belum mendukung": "neither fundamentals nor technicals support it yet",
+    "belum ada skor beli teknikal": "no technical buy score yet",
+    "tidak ada di hasil Analisa Fundamental (tidak lolos saringannya atau belum dipindai)": "not in the Fundamental Analysis results (did not pass its filter or not scanned yet)",
+    "Fundamental {x}/100 · {label}": "Fundamentals {x}/100 · {label}", "MoS {x} ({v})": "MoS {x} ({v})",
+    "Margin of safety terhadap harga wajar (Analisa Fundamental)": "Margin of safety versus fair value (Fundamental Analysis)",
+    "Buka Analisa Fundamental": "Open Fundamental Analysis", "Fundamental": "Fundamentals",
+    "Belum dinilai di Analisa Fundamental (tidak lolos saringannya atau belum dipindai).": "Not scored in Fundamental Analysis (did not pass its filter or not scanned yet).",
+    "Valuasi": "Valuation", "Kualitas": "Quality", "Kesehatan": "Health", "Dividen": "Dividends", "harga wajar": "fair value", "dari": "from",
+    "Skor di pindai fundamental hari sebelumnya": "Score in the previous day's fundamental scan",
+    "Laporan s.d. {lap} · harga {h} per {tgl} · dinilai {w}.": "Report up to {lap} · price {h} as of {tgl} · scored {w}.",
+    "Kelompok: fundamental ≥ {f} dan skor beli ≥ {b}. Fundamental = apa yang layak dibeli, skor beli = kapan; keduanya tidak dirata-rata.":
+      "Groups: fundamentals ≥ {f} and buy score ≥ {b}. Fundamentals = what is worth buying, buy score = when; the two are not averaged.",
+    "Kelompok fundamental + teknikal": "Fundamental + technical groups", "Semua kelompok": "All groups", "Fund": "Fund",
+    "Skor fundamental 0–100 dari Analisa Fundamental (sorot angka untuk rinciannya)": "Fundamental score 0–100 from Fundamental Analysis (hover the number for details)",
+    "Fundamental dari Analisa Fundamental, dinilai {w}. Kelompok: fundamental ≥ {f} dan skor beli ≥ {b} (ambang dari pengaturan Analisa Fundamental).":
+      "Fundamentals from Fundamental Analysis, scored {w}. Groups: fundamentals ≥ {f} and buy score ≥ {b} (thresholds from the Fundamental Analysis settings).",
     // ---------- kepala & navigasi ----------
     "Cek aset": "Check asset", "Portofolio": "Portfolio", "Halaman": "Pages", "Ikuti chart": "Follow chart", "Ikuti lagi": "Follow again",
     "Sinyal mana yang berguna?": "Which signals are useful?", "Perubahan harga 20 hari saat kategori sinyal itu bullish dikurangi saat bearish (poin persen). Positif (hijau) = searah dengan hasil; sekitar nol atau merah = di pasar itu kategori ini tidak membantu.": "20-day price change when that signal category is bullish minus when it is bearish (percentage points). Positive (green) = in line with the outcome; near zero or red = the category does not help in that market.", "Kategori sinyal": "Signal category", "bullish {a} hari · bearish {b} hari": "bullish {a} days · bearish {b} days", "Seberapa sering rencananya terjadi?": "How often does the plan play out?", "Dari semua hari ketika rencana itu muncul: mana yang lebih dulu terjadi dalam {n} bar sesudahnya.": "Of all the days that plan appeared: which happened first within the next {n} bars.", "{n} hari": "{n} days", "target 1 dulu": "target 1 first", "stop dulu": "stop first", "belum keduanya": "neither yet", "turun ke target turun 1": "fell to target down 1", "konfirmasi naik dulu": "reversal up first",

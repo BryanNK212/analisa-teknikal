@@ -1,5 +1,5 @@
-Analisa Teknikal - versi 25-11-2026 11:50 (e5ff0242b983)
-Program 1.4 | mesin 1.4.1 | ekstensi 1.15
+Analisa Teknikal - versi 25-11-2026 21:43 (987c525a6b54)
+Program 1.5 | mesin 1.4.1 | ekstensi 1.15
 
 Pembaruan otomatis: setiap kali peluncur dibuka, versi terbaru diambil dari GitHub (lihat rilis.json).
 Daftar pantau dan bahasa tetap (tersimpan di pengaturan.json). Ekstensi memuat ulang dirinya sendiri.

@@ -151,6 +151,7 @@ Dibuat otomatis saat pertama jalan.
 
 - Ikon ekstensi menulis **off**, atau panel samping menulis "Panel lokal belum jalan": jalankan peluncurnya.
 - Panel tidak mau menyala: lihat `output/panel.log` (Windows: `output/panel_galat.log`).
+- Komputer yang baru dinyalakan bisa butuh hingga sekitar satu menit sebelum browser terbuka. Bila halaman sempat menulis "Panel lokal mati", tunggu sebentar: halaman tersambung dan memuat ulang sendiri.
 - "Belum ada Python dengan numpy": ulangi langkah pemasangan Python.
 
 ## Isi folder

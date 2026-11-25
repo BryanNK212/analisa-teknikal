@@ -26,33 +26,57 @@ done
 [ -n "$PY" ] || { pesan "Belum ada python3 dengan numpy. Pasang Python dari python.org, lalu di Terminal jalankan: pip3 install numpy yfinance matplotlib"; exit 1; }
 
 # Panel lama di port ini dimatikan dulu (sebelum pembaruan, supaya berkasnya tidak sedang dipakai).
-for pid in $(lsof -ti tcp:$PORT -sTCP:LISTEN 2>/dev/null); do
-  ps -p "$pid" -o command= | grep -q "panel.py" && kill "$pid"
+# Tunggu sampai port benar-benar kosong: kalau panel lama belum mati, panel baru gagal menyala dan peluncur
+# keliru menganggap panel lama (yang sebentar lagi mati) sebagai panel baru -> halaman tidak termuat.
+T0=$(date +%s)
+LAMA=""
+for pid in $(lsof -nP -ti tcp:$PORT -sTCP:LISTEN 2>/dev/null); do
+  ps -p "$pid" -o command= | grep -q "panel.py" && { kill "$pid" 2>/dev/null; LAMA="$LAMA $pid"; }
 done
-sleep 0.4
+if [ -n "$LAMA" ]; then
+  for i in $(seq 1 40); do
+    [ -z "$(lsof -nP -ti tcp:$PORT -sTCP:LISTEN 2>/dev/null)" ] && break
+    [ "$i" = 20 ] && for pid in $LAMA; do kill -9 "$pid" 2>/dev/null; done
+    sleep 0.25
+  done
+fi
 
 # Pembaruan otomatis dari GitHub (perbarui.py; rilis.json -> repo). Folder sumber (dengan buat_paket.py)
 # tidak pernah diperbarui. Tanpa internet: dilewati, program jalan dengan versi yang ada.
 mkdir -p "$FOLDER/output"
 [ -f "$FOLDER/perbarui.py" ] && "$PY" "$FOLDER/perbarui.py" >> "$FOLDER/output/perbarui.log" 2>&1
 
-mkdir -p "$FOLDER/output"
 cd "$FOLDER"
-nohup "$PY" panel.py --port $PORT --no-browser > "$FOLDER/output/panel.log" 2>&1 &
+# -u: keluaran panel langsung tertulis ke panel.log (tanpa -u, pesan galat bisa hilang di penyangga).
+nohup "$PY" -u panel.py --port $PORT --no-browser > "$FOLDER/output/panel.log" 2>&1 &
+PANEL=$!
+catat() { echo "$(date '+%Y-%m-%d %H:%M:%S') $1" >> "$FOLDER/output/buka.log"; }
 
-for i in $(seq 1 120); do
-  if ST="$(curl -s --noproxy '*' "http://127.0.0.1:$PORT/api/status")" && [ -n "$ST" ]; then
+# Mac yang baru dinyalakan bisa butuh puluhan detik untuk memuat Python + numpy pertama kali: tunggu s.d. 90 detik.
+for i in $(seq 1 360); do
+  if ! kill -0 "$PANEL" 2>/dev/null; then
+    catat "gagal: panel berhenti sendiri setelah $(( $(date +%s) - T0 )) dtk"
+    pesan "Panel berhenti sebelum sempat menyala. Keterangannya ada di $FOLDER/output/panel.log"
+    open -e "$FOLDER/output/panel.log"
+    exit 1
+  fi
+  # Hanya panel yang baru dinyalakan ini yang dihitung (bukan sisa panel lama).
+  DENGAR="$(lsof -nP -ti tcp:$PORT -sTCP:LISTEN 2>/dev/null | head -1)"
+  if [ -n "$DENGAR" ] && ! echo " $LAMA " | grep -q " $DENGAR " \
+     && ST="$(curl -s -m 5 --noproxy '*' "http://127.0.0.1:$PORT/api/status")" && [ -n "$ST" ]; then
+    catat "siap dalam $(( $(date +%s) - T0 )) dtk (python: $PY)"
     # Belum ada portofolio maupun daftar pantau (mis. baru dipasang): langsung ke Cek aset, tanpa pindai.
     if echo "$ST" | grep -Eq '"portofolio"[[:space:]]*:[[:space:]]*"kosong"'; then
       open "http://127.0.0.1:$PORT/"
     else
-      curl -s --noproxy '*' -o /dev/null -X POST -H "X-Panel: 1" "http://127.0.0.1:$PORT/api/pindai"
+      curl -s -m 5 --noproxy '*' -o /dev/null -X POST -H "X-Panel: 1" "http://127.0.0.1:$PORT/api/pindai"
       open "http://127.0.0.1:$PORT/#portofolio"
     fi
     exit 0
   fi
   sleep 0.25
 done
+catat "gagal: belum siap setelah 90 dtk"
 pesan "Panel tidak mau menyala. Keterangannya ada di $FOLDER/output/panel.log"
 open -e "$FOLDER/output/panel.log"
 exit 1

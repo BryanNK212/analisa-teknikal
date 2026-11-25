@@ -135,6 +135,7 @@
           </div>
           <p class="gab" id="vGab" hidden></p>
           <div id="vBeli" hidden></div>
+          <div id="vFund" hidden></div>
           <p class="konf" id="vKonf" hidden></p>
           <p class="live-note" id="vLive" hidden></p>
         </section>
@@ -183,5 +184,17 @@
 <script src="/web/portofolio.js?v=__V__"></script>
 <script src="/web/pemindai.js?v=__V__"></script>
 <script src="/web/panel.js?v=__V__"></script>
+<script>
+// Pengaman: bila satu skrip gagal dimuat (mis. koneksi diputus saat panel baru menyala), panel.js tidak sempat
+// menandai siap -> muat ulang halaman otomatis, paling banyak 3 kali berturut-turut.
+(function () {
+  var ss; try { ss = window.sessionStorage; ss.getItem("atUlang"); } catch (e) { return; }
+  if (window.ATSiap) { ss.removeItem("atUlang"); return; }
+  var n = +ss.getItem("atUlang") || 0;
+  if (n >= 3) return;
+  ss.setItem("atUlang", String(n + 1));
+  setTimeout(function () { location.reload(); }, 700 * (n + 1));
+})();
+</script>
 </body>
 </html>

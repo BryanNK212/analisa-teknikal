@@ -610,6 +610,9 @@ def analisa(q: str, tf: str, pasar: str | None, ringkas: bool = False, bahasa: s
              "aksi": aksi, "bendera": fl_t, "berjalan": berjalan,
              "rs": bh.rs_en(rs) if en else rs, "dekat": dekat, "narasi": narasi, "rencana_aksi": rencana,
              "lapisan": lap, "skor_beli": beli}
+    if mkt == "idx" and not ringkas:
+        # Analisa Fundamental (program terpisah, hanya dibaca bila foldernya ada). Bukan data portofolio.
+        hasil["fundamental"] = fund_untuk(code, beli["skor"] if beli else None, bahasa)
     if ringkas:
         # Kartu kecil di halaman chart (ekstensi).
         level = [{"k": k.upper(), "harga": fp(dekat[k]["harga"]), "jarak": persen(dekat[k]["jarak_pct"]),
@@ -712,8 +715,108 @@ def ihsg_data(bahasa: str) -> dict:
             a["langkah"] = a.get("langkah_en") or a.get("langkah")
     for a in d.get("aset") or []:
         a.pop("langkah_en", None)
+    F = baca_fundamental()
+    if F.get("ada"):
+        for a in d.get("aset") or []:
+            sb = a.get("skor_beli") if isinstance(a.get("skor_beli"), dict) else {}
+            a["fund"] = fund_ringkas(F, a.get("kode"), sb.get("skor"), bahasa)
+        out["fund"] = {k: F.get(k) for k in ("waktu", "harga_tanggal", "fund_min", "beli_min", "url")}
     out["data"] = d
     return out
+
+
+# ==================================================================
+# ANALISA FUNDAMENTAL (program terpisah; hanya DIBACA bila ada)
+# ==================================================================
+# Hasil pindai Analisa Fundamental (<folder>/output/fundamental.json) dipakai apa adanya untuk saham IDX:
+# skor 0–100, kelompok kualitas × harga, harga wajar, MoS, tanda. Folder itu tidak pernah ditulis.
+# Lokasi: pengaturan.json → folder_fundamental (bawaan ~/Analisa Fundamental; "" = matikan). Tanpa folder itu
+# (mis. paket untuk orang lain) semua bagian fundamental disembunyikan. Ini bukan data portofolio.
+# Fundamental = apa yang layak dibeli, teknikal (skor beli) = kapan. Keduanya sengaja tidak dirata-rata;
+# ambang 4 kelompok dibaca dari pengaturan Analisa Fundamental supaya kedua panel selalu sepakat.
+
+_FUND = {"kunci": None, "data": {"ada": False}}
+URL_FUND = "http://127.0.0.1:8769/"
+
+
+def _folder_fundamental() -> Path | None:
+    s = tk.muat_pengaturan().get("folder_fundamental")
+    if s is not None and not str(s).strip():
+        return None
+    return Path(os.path.expanduser(str(s or "~/Analisa Fundamental")))
+
+
+def baca_fundamental() -> dict:
+    folder = _folder_fundamental()
+    if folder is None:
+        return {"ada": False}
+    p, pc = folder / "output" / "fundamental.json", folder / "pengaturan.json"
+    try:
+        kunci = (str(p), p.stat().st_mtime, pc.stat().st_mtime if pc.exists() else 0)
+    except OSError:
+        return {"ada": False}
+    if _FUND["kunci"] == kunci:
+        return _FUND["data"]
+    d, cfg = _baca(p), _baca(pc, {}) or {}
+    data = {"ada": False}
+    if isinstance(d, dict) and isinstance(d.get("baris"), list):
+        baris = {}
+        for b in d["baris"]:
+            k = str(b.get("kode") or "").upper().replace(".JK", "")
+            if not k or b.get("skor") is None:
+                continue
+            teks = b.get("tanda_teks") if isinstance(b.get("tanda_teks"), dict) else {}
+            tid, ten = teks.get("id") or [], teks.get("en") or []
+            tanda = []
+            for i, tn in enumerate(b.get("tanda") or []):
+                if isinstance(tn, dict) and tn.get("level") in ("merah", "oranye", "hijau"):
+                    tanda.append({"level": tn["level"], "id": tid[i] if i < len(tid) else tn.get("kode"),
+                                  "en": ten[i] if i < len(ten) else (tid[i] if i < len(tid) else tn.get("kode"))})
+            baris[k] = {x: b.get(x) for x in ("skor", "label", "kelas", "pilar", "wajar", "mos", "vonis", "harga",
+                                              "cakupan", "tanggal_laporan", "skor_lalu", "nama", "sektor")}
+            baris[k]["tanda"] = tanda
+        try:
+            fmin, bmin = float(cfg.get("gabungan_fund_min", 65)), float(cfg.get("gabungan_beli_min", 70))
+        except (TypeError, ValueError):
+            fmin, bmin = 65.0, 70.0
+        data = {"ada": bool(baris), "waktu": d.get("waktu"), "harga_tanggal": d.get("harga_tanggal"),
+                "fund_min": fmin, "beli_min": bmin, "url": URL_FUND, "baris": baris}
+    _FUND.update(kunci=kunci, data=data)
+    return data
+
+
+def _grup(skor_fund, skor_beli, F: dict) -> str:
+    if skor_beli is None:
+        return "tanpa_tek"
+    kuat, siap = skor_fund >= F["fund_min"], skor_beli >= F["beli_min"]
+    return "kandidat" if kuat and siap else "pantau" if kuat else "trading" if siap else "lewati"
+
+
+def fund_ringkas(F: dict, kode, skor_beli, bahasa: str) -> dict | None:
+    b = F["baris"].get(str(kode or "").upper().replace(".JK", ""))
+    if not b:
+        return None
+    merah = [t for t in b["tanda"] if t["level"] == "merah"]
+    return {"skor": b["skor"], "label": b["label"], "kelas": b["kelas"], "mos": b["mos"], "vonis": b["vonis"],
+            "wajar": b["wajar"], "merah": [t["en" if bahasa == "en" else "id"] for t in merah][:3],
+            "grup": _grup(b["skor"], skor_beli, F)}
+
+
+def fund_untuk(code: str, skor_beli, bahasa: str) -> dict | None:
+    """Kotak Fundamental di Cek aset. None = program fundamental tidak ada; ada=False = emiten belum dinilai."""
+    F = baca_fundamental()
+    if not F.get("ada"):
+        return None
+    kode = str(code).upper().replace(".JK", "")
+    info = {"kode": kode, "waktu": F["waktu"], "harga_tanggal": F.get("harga_tanggal"), "url": F["url"],
+            "fund_min": F["fund_min"], "beli_min": F["beli_min"]}
+    b = F["baris"].get(kode)
+    if not b:
+        return {"ada": False, **info}
+    tanda = sorted(b["tanda"], key=lambda t: ("merah", "oranye", "hijau").index(t["level"]))
+    return {"ada": True, **info, **{k: v for k, v in b.items() if k != "tanda"},
+            "tanda": [{"level": t["level"], "teks": t["en" if bahasa == "en" else "id"]} for t in tanda][:5],
+            "grup": _grup(b["skor"], skor_beli, F)}
 
 
 def _jadwal_ihsg() -> None:
@@ -773,6 +876,13 @@ def _pindai():
 # ==================================================================
 # HTTP
 # ==================================================================
+
+
+class PanelServer(ThreadingHTTPServer):
+    """Antrean koneksi bawaan Python hanya 5. Halaman panel meminta ±10 berkas sekaligus; di macOS koneksi yang
+    tidak muat langsung diputus (ERR_CONNECTION_RESET), skrip gagal dimuat dan halaman macet di "Menghubungkan…"."""
+    request_queue_size = 128
+    daemon_threads = True
 
 
 class Penangan(BaseHTTPRequestHandler):
@@ -929,7 +1039,7 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
     OFFLINE = args.offline
     HOST_SAH.update({f"127.0.0.1:{args.port}", f"localhost:{args.port}"})
-    srv = ThreadingHTTPServer(("127.0.0.1", args.port), Penangan)
+    srv = PanelServer(("127.0.0.1", args.port), Penangan)
     threading.Thread(target=_jadwal_ihsg, daemon=True).start()
     url = f"http://127.0.0.1:{args.port}/"
     print(f"Panel Analisa Teknikal berjalan di {url}  (Ctrl+C untuk berhenti)")
