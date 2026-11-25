@@ -4,5 +4,8 @@
   "tambahan_pantau": [],
   "periode": "2y",
   "kurs_cadangan": 17500,
-  "bahasa": "id"
+  "bahasa": "id",
+  "ihsg_otomatis": true,
+  "ihsg_jam": "16:30",
+  "ihsg_saringan": "longgar"
 }

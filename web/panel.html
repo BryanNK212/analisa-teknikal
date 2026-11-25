@@ -39,6 +39,7 @@
     <nav class="nav" aria-label="Halaman" data-i18n-attr="aria-label">
       <a class="tab" id="tabCek" href="#" data-view="cek" aria-current="page" data-i18n>Cek aset</a>
       <a class="tab" id="tabPorto" href="#portofolio" data-view="porto" data-i18n>Portofolio</a>
+      <a class="tab" id="tabIhsg" href="#ihsg" data-view="ihsg"><span data-i18n>Pemindai IHSG</span> <span class="hitung" id="ihsgHitung" hidden></span></a>
     </nav>
     <label class="follow" id="ikutiWadah" data-i18n-attr="title" title="Ikuti simbol (dan timeframe, bila situsnya memberi) dari chart yang sedang dibuka: TradingView, Stockbit, Binance, Yahoo Finance, dll."><input type="checkbox" id="ikuti" role="switch" checked><span data-i18n>Ikuti chart</span></label>
     <div class="seg bahasa" id="bahasaSeg" role="group" aria-label="Bahasa" data-i18n-attr="aria-label">
@@ -133,6 +134,7 @@
             <div><div class="label" id="vLabel"></div><div class="trend" id="vTrend"></div></div>
           </div>
           <p class="gab" id="vGab" hidden></p>
+          <div id="vBeli" hidden></div>
           <p class="konf" id="vKonf" hidden></p>
           <p class="live-note" id="vLive" hidden></p>
         </section>
@@ -170,6 +172,7 @@
 
   <!-- ============ PORTOFOLIO ============ -->
   <main class="porto" id="viewPorto" hidden></main>
+  <main class="porto ihsg" id="viewIhsg" hidden></main>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 <div class="sr-only" id="sr" role="status" aria-live="polite" aria-atomic="true"></div>
@@ -178,6 +181,7 @@
 <script src="/web/lw.js?v=__V__"></script>
 <script src="/web/lapisan.js?v=__V__"></script>
 <script src="/web/portofolio.js?v=__V__"></script>
+<script src="/web/pemindai.js?v=__V__"></script>
 <script src="/web/panel.js?v=__V__"></script>
 </body>
 </html>

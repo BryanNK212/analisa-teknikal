@@ -242,6 +242,10 @@
       .dekat { font: 700 10px/15px -apple-system, BlinkMacSystemFont, system-ui, sans-serif; color: #0b0b0c; background: #e0a64b; border-radius: 3px; padding: 0 4px; }
       ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
       .langkah { margin: 8px 0 0; font-size: 11.5px; line-height: 1.45; color: #e4e4e7; }
+      .beli { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: #bcbcc2; }
+      .beli b { font: 600 13px ui-monospace, "SF Mono", Menlo, monospace; }
+      .beli .meter { flex: 1; height: 5px; background: #26262a; border-radius: 3px; overflow: hidden; position: relative; }
+      .beli .meter i { position: absolute; left: 0; top: 0; bottom: 0; background: currentColor; border-radius: 3px; }
       .langkah b { color: #f4f4f5; font-weight: 600; }
       li { display: grid; grid-template-columns: 14px 1fr; gap: 7px; align-items: start; font-size: 12px; line-height: 1.4; color: #e4e4e7; }
       li svg { margin-top: 1px; }
@@ -261,7 +265,7 @@
 
     // Teks kartu dalam bahasa Inggris (bahasa mengikuti data analisa dari panel: data.bahasa).
     const EN = {
-      "skor": "score", "Klik untuk membuka kartu": "Click to open the card", "Klik untuk membuka · seret untuk memindah": "Click to open · drag to move",
+      "Skor beli": "Buy score", "skor": "score", "Klik untuk membuka kartu": "Click to open the card", "Klik untuk membuka · seret untuk memindah": "Click to open · drag to move",
       "dekat": "near", "hari ini": "Today's", "terakhir": "The latest",
       "Timeframe chart": "Chart timeframe", "Seret untuk memindah": "Drag to move",
       "Garis analisa di chart": "Analysis lines on the chart", "Sembunyikan": "Hide", "Tampilkan": "Show",
@@ -335,6 +339,7 @@
           <div class="isi">
             <div class="vonis"><span class="skor mono ${k}">${esc(skorTxt(d.skor))}</span>
               <div><div class="label ${k}">${esc(d.label)}</div><div class="simbol" title="${esc(d.simbol)} · ${esc(d.singkat)}"><b>${esc(d.simbol)}</b> · ${esc(d.singkat)}</div></div></div>
+            ${d.beli && d.beli.skor != null ? (() => { const kb = d.beli.skor >= 60 ? "up" : d.beli.skor >= 40 ? "flat" : "down"; return `<div class="beli" title="${tk("Skor beli")} ${d.beli.skor}/100 · ${esc(d.beli.label)}"><span>${tk("Skor beli")}</span><b class="${kb}">${d.beli.skor}</b><span class="meter ${kb}" aria-hidden="true"><i style="width:${Math.max(2, Math.min(100, d.beli.skor))}%"></i></span><span class="${kb}">${esc(d.beli.label)}</span></div>`; })() : ""}
             ${lv ? `<div class="level">${lv}</div>` : ""}
             ${tanda ? `<ul aria-label="${tk("Tanda")}">${tanda}</ul>` : ""}
             ${d.langkah ? `<p class="langkah" title="${tk("Rencana tindakan")}"><b>→</b> ${esc(d.langkah)}</p>` : ""}

@@ -1,10 +1,10 @@
 {
-  "id": "67adac51b42c",
-  "tanggal": "23-11-2026 17:38",
+  "id": "22fdd553b54f",
+  "tanggal": "25-11-2026 11:38",
   "program": "1.4",
-  "mesin": "1.4.0",
-  "ekstensi": "1.11",
-  "ekstensi_sidik": "e550b1fc9d31",
+  "mesin": "1.4.1",
+  "ekstensi": "1.14",
+  "ekstensi_sidik": "800fdee2c7d7",
   "berkas": [
     ".gitattributes",
     "Analisa Teknikal (Windows).bat",
@@ -16,6 +16,7 @@
     "VERSI.json",
     "VERSI.txt",
     "bahasa.py",
+    "daftar_ihsg.json",
     "ekstensi/background.js",
     "ekstensi/content.js",
     "ekstensi/ikon128.png",
@@ -28,6 +29,7 @@
     "ekstensi/sidepanel.js",
     "ekstensi/tv_utama.js",
     "panel.py",
+    "pemindai.py",
     "pengaturan_awal.json",
     "perbarui.py",
     "rilis.json",
@@ -48,6 +50,7 @@
     "web/panel.css",
     "web/panel.html",
     "web/panel.js",
+    "web/pemindai.js",
     "web/portofolio.js",
     "windows/buka.ps1"
   ]

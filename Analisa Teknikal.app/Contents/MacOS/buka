@@ -9,6 +9,8 @@ FOLDER="$(cd "$(dirname "$0")/../../.." 2>/dev/null && pwd)"
 PORT=8768
 export PATH="/opt/homebrew/bin:/usr/local/bin:/Library/Frameworks/Python.framework/Versions/Current/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 export PYTHONDONTWRITEBYTECODE=1
+# Aplikasi yang dibuka dari Finder hanya boleh membuka 256 berkas sekaligus; Pemindai IHSG butuh lebih.
+ulimit -n 4096 2>/dev/null || ulimit -n 2048 2>/dev/null || true
 pesan() { osascript -e "display alert \"Analisa Teknikal\" message \"$1\"" >/dev/null 2>&1; }
 
 [ -f "$FOLDER/panel.py" ] || { pesan "panel.py tidak ditemukan di $FOLDER."; exit 1; }

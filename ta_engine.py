@@ -28,7 +28,7 @@ from urllib.parse import quote
 
 import numpy as np
 
-VERSION = "1.4.0"
+VERSION = "1.4.1"
 NAN = float("nan")
 
 # =============================================================================
@@ -408,7 +408,7 @@ def fetch_yahoo(code, tf="1d"):
     last_err = None
     for host in ("query1", "query2"):
         try:
-            j = _get_json(f"https://{host}.finance.yahoo.com/v8/finance/chart/{quote(code, safe='.-=^')}?range={rng}&interval={interval}&includePrePost=false")
+            j = _get_json(f"https://{host}.finance.yahoo.com/v8/finance/chart/{quote(code, safe='.-=')}?range={rng}&interval={interval}&includePrePost=false")
             res = j["chart"]["result"][0]
             q = res["indicators"]["quote"][0]
             rows = [[t, o, h, l, c, v or 0] for t, o, h, l, c, v in
@@ -1085,9 +1085,9 @@ def chart_patterns(o, h, l, c, a, sw):
                     name, nid, bias = "Descending Channel", "Channel turun", -1
             if name:
                 up_now, lo_now = sh * (n - 1) + ih, sl * (n - 1) + il
-                status, conf, target = "masih di dalam pola", False, None
+                status, conf, target, arah = "masih di dalam pola", False, None, 0
                 if price > up_now + 0.2 * a_last:
-                    status, conf, target = "breakout ke atas", True, up_now + w0
+                    status, conf, target, arah = "breakout ke atas", True, up_now + w0, 1
                     bias = 1 if bias >= 0 or name in ("Descending Triangle", "Descending Channel") else bias
                     if name == "Rising Wedge":
                         status = "tembus atas (pola wedge gagal)"
@@ -1096,7 +1096,7 @@ def chart_patterns(o, h, l, c, a, sw):
                         # pola yang biasanya bearish malah tembus ke atas: nama "cenderung bearish" menyesatkan
                         nid, status = f"{name} gagal (tembus ke atas, bullish)", "terkonfirmasi"
                 elif price < lo_now - 0.2 * a_last:
-                    status, conf, target = "breakdown ke bawah", True, lo_now - w0
+                    status, conf, target, arah = "breakdown ke bawah", True, lo_now - w0, -1
                     bias = -1
                     if name in ("Falling Wedge", "Ascending Triangle"):
                         # pola yang biasanya bullish malah jebol ke bawah (mis. dulu tertulis
@@ -1107,6 +1107,12 @@ def chart_patterns(o, h, l, c, a, sw):
                              "lower": [[float(start), float(sl * start + il)], [float(n - 1), float(lo_now)]],
                              "upper_now": float(up_now), "lower_now": float(lo_now), "target": None if target is None else float(target),
                              "start_idx": int(start), "end_idx": int(n - 1)})
+                if arah:
+                    # bar pertama rangkaian close terakhir di luar garis = awal breakout (dipakai cek "target tercapai")
+                    j = n - 1
+                    while j - 1 > start and ((arah > 0 and c[j - 1] > sh * (j - 1) + ih) or (arah < 0 and c[j - 1] < sl * (j - 1) + il)):
+                        j -= 1
+                    pats[-1]["break_idx"] = int(j)
 
     # --- Bull / bear flag
     # 1.3.0: syarat diperketat (dulu muncul di ~30% aset sekaligus saat pasar turun). Tiang harus tajam
@@ -1148,6 +1154,11 @@ def chart_patterns(o, h, l, c, a, sw):
                      "box": [float(pe + 1), float(cl_), float(n - 1), float(ch_)],
                      "trigger": float(brk), "target": float(brk + move), "invalidation": float(cl_ if bias > 0 else ch_),
                      "start_idx": int(ps), "end_idx": int(n - 1)})
+        if conf:
+            j = n - 1
+            while j - 1 > pe and ((bias > 0 and c[j - 1] > ch_) or (bias < 0 and c[j - 1] < cl_)):
+                j -= 1
+            pats[-1]["break_idx"] = int(j)
     # Double top/bottom yang belum terkonfirmasi dan menempel di batas segitiga/flag = bagian dari pola itu
     geo = [p for p in pats if p["name"] in ("Ascending Triangle", "Descending Triangle", "Rectangle", "Bull Flag", "Bear Flag", "Symmetrical Triangle")]
     keep = []
@@ -1166,9 +1177,9 @@ def chart_patterns(o, h, l, c, a, sw):
             continue
         if not p.get("confirmed"):
             continue
-        # pola swing: sejak swing terakhir; pola garis/flag: sejak awal pola (1.4.0: dulu hanya 3 bar terakhir, sehingga
-        # target yang tercapai 5 bar lalu bisa "hidup lagi")
-        k = min(int(p["end_idx"]), n - 1) if "points" in p else int(p.get("start_idx", n - 3))
+        # pola swing: sejak swing terakhir; pola garis/flag: sejak awal breakout (break_idx). Bukan sejak awal pola:
+        # harga di awal wedge/channel sering sudah melewati targetnya, sehingga breakout baru langsung dicap "tercapai".
+        k = min(int(p["end_idx"]), n - 1) if "points" in p else int(p.get("break_idx", n - 3))
         k = max(0, min(k, n - 1))
         p["target_hit"] = bool(l[k:].min() <= tg) if p["bias"] < 0 else bool(h[k:].max() >= tg)
     return keep

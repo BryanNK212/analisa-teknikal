@@ -188,6 +188,23 @@
     const ada = urut.filter((s) => s.score), nol = urut.filter((s) => !s.score);
     return `<ul class="items">${ada.map(li).join("")}</ul>` + (nol.length ? `<details class="sig-nol"><summary>${t("{n} keterangan lain (tidak mengubah skor)", { n: nol.length })}</summary><ul class="items">${nol.map(li).join("")}</ul></details>` : "");
   }
+  // Skor beli 0–100 (wawasan.skor_beli): seberapa layak dibeli sekarang, dari sisi teknikal saja.
+  const kelasBeli = (x) => (x >= 60 ? "up" : x >= 40 ? "flat" : "down");
+  const NAMA_KOMP = { tren: "Tren 1D+1W", lokasi: "Lokasi harga", rr: "Imbal hasil vs risiko", rs: "vs pasar", konfirmasi: "Momentum & volume" };
+  function beliBadge(sb) {
+    if (!sb || sb.skor == null) return `<span class="faint">—</span>`;
+    return `<span class="beli-b ${kelasBeli(sb.skor)}" title="${esc(t("Skor beli {x}/100 · {label}", { x: sb.skor, label: sb.label }))}">${sb.skor}</span>`;
+  }
+  function beliHtml(sb) {
+    if (!sb || sb.skor == null) return "";
+    const maks = sb.maks || {};
+    const komp = Object.entries(sb.komponen || {}).map(([k, v]) => `<li><span>${esc(t(NAMA_KOMP[k] || k))}</span><span class="kbar" aria-hidden="true"><span class="pos" style="width:${(maks[k] ? (v / maks[k]) * 100 : 0).toFixed(0)}%"></span></span><span class="v num">${num(v, 0)}/${maks[k] || "?"}</span></li>`).join("");
+    return `<div class="beli"><div class="beli-kepala"><span>${t("Skor beli")}</span><span class="beli-angka ${kelasBeli(sb.skor)}">${sb.skor}<span class="faint">/100</span></span><span class="${kelasBeli(sb.skor)}">${esc(sb.label)}</span></div>
+      <div class="beli-meter" role="img" aria-label="${esc(t("Skor beli {x}/100 · {label}", { x: sb.skor, label: sb.label }))}"><span class="${kelasBeli(sb.skor)}" style="width:${Math.max(2, Math.min(100, sb.skor))}%"></span></div>
+      ${sb.dibatasi ? `<p class="note">${t("Dibatasi 59 (Pantau) karena tren 1D+1W rata-rata masih turun.")}</p>` : ""}
+      <details class="beli-rinci"><summary>${t("Rincian")}</summary><ul>${komp}</ul>
+      <p class="note">${t("Dari data harian (1D + 1W), sama di semua tampilan. Teknikal saja: valuasi, laporan keuangan, dan berita tidak dihitung. 0–39 belum layak · 40–59 pantau · 60–79 layak dicicil · 80–100 menarik.")}</p></details></div>`;
+  }
   const dekatTag = (x) => (x && x.dekat ? `<span class="dekat" title="${t("Harga sangat dekat level ini")}">${t("dekat")}</span>` : "");
   const KELAS = { idx: t("Saham IDX"), us: t("Saham/ETF AS"), crypto: t("Kripto") };
 
@@ -210,7 +227,7 @@
 
   const KOLOM = [
     ["simbol", t("Aset"), ""], ["harga", t("Harga"), "r"], ["pl_pct", "P/L", "r"], ["bobot", t("Bobot"), "r"],
-    ["skor", t("Skor"), "r"], ["w1", "1W", "r"], ["", t("30 hari"), "r"], ["rs", t("vs pasar"), "r"], ["s1", "S1 · R1", "r"], ["perhatian", t("Sinyal & langkah"), ""],
+    ["skor", t("Skor"), "r"], ["beli", t("Beli"), "r"], ["w1", "1W", "r"], ["", t("30 hari"), "r"], ["rs", t("vs pasar"), "r"], ["s1", "S1 · R1", "r"], ["perhatian", t("Sinyal & langkah"), ""],
   ];
 
   function renderPortofolio(el, data, opts = {}) {
@@ -290,6 +307,7 @@
       if (key === "s1") return a.support && a.support[0] ? (a.harga - a.support[0]) / a.harga : 9;
       if (key === "w1") { const w = skorTf(a, "1wk"); return w == null ? -1e9 : w; }
       if (key === "rs") return a.rs && a.rs.rs20 != null ? a.rs.rs20 : -1e9;
+      if (key === "beli") return a.skor_beli && a.skor_beli.skor != null ? a.skor_beli.skor : -1e9;
       const v = a[key];
       return typeof v === "string" ? v : v ?? -1e18;
     }
@@ -309,6 +327,7 @@
         ${pantauSaja ? "" : `<td class="r"><span class="num ${(a.pl_pct || 0) >= 0 ? "up" : "down"}">${pct(a.pl_pct)}</span><span class="delta faint" title="${t("Harga rata-rata")}">avg ${esc(fp(a.avg, mk))}</span></td>
         <td class="r num muted">${pct(a.bobot, false)}</td>`}
         <td class="r"><span class="badge ${cls(a.skor)}">${skorTxt(a.skor)}</span>${d ? `<span class="delta ${d > 0 ? "up" : "down"}" title="${R.tanggal_dasar ? t("Berubah {d} dibanding pindai {tgl}", { d: skorTxt(d), tgl: esc(tglPendek(R.tanggal_dasar)) }) : t("Berubah {d} sejak pindai sebelumnya", { d: skorTxt(d) })}">${skorTxt(d)}</span>` : ""}</td>
+        <td class="r">${beliBadge(a.skor_beli)}</td>
         <td class="r num ${w == null ? "faint" : "muted"}">${w == null ? "—" : skorTxt(w)}</td>
         <td class="r">${sparkline(titikRiwayat(a))}</td>
         <td class="r">${rsHtml(a.rs, true)}</td>
@@ -340,6 +359,7 @@
         <div>
           <div class="verdict"><div class="score ${cls(a.skor)}" style="font-size:34px">${skorTxt(a.skor)}</div><div><div class="label ${cls(a.skor)}">${esc(a.label)}</div><div class="trend">${ist(a.tren)}</div></div></div>
           ${a.konfluensi ? `<p class="konf">${esc(a.konfluensi)}</p>` : ""}
+          ${beliHtml(a.skor_beli)}
           ${rsHtml(a.rs)}
           ${riwayatHtml(a)}
           ${a.narasi ? `<h3>${B.en ? t("Analisa tertulis") : "Analisa"}</h3><div class="narasi">${narasiHtml(a.narasi)}</div>` : ""}
@@ -465,7 +485,7 @@
       <p class="muted">${t("Rata-rata perubahan harga 20 hari bursa sesudah skor berada di kelompok tertentu. Skor dihitung hanya dari data sampai hari itu.")}</p>
       ${mesin && U.versi_mesin && mesin !== U.versi_mesin ? `<p class="down">${esc(t("Uji ini dibuat dengan mesin {a}, sedangkan mesin sekarang {b}. Hitung ulang: python3 uji_skor.py", { a: U.versi_mesin, b: mesin }))}</p>` : ""}
       <div class="tbl-wrap"><table class="uji"><thead><tr><th>${t("Pasar")}</th>${kepala}<th class="r">${t("semua hari")}</th></tr></thead><tbody>${baris}</tbody></table></div>
-      ${ujiKategoriHtml(U, NAMA)}${ujiRencanaHtml(U, NAMA)}
+      ${ujiKategoriHtml(U, NAMA)}${ujiRencanaHtml(U, NAMA)}${ujiBeliHtml(U, NAMA)}
       <p class="hsisa">${t("Sampel hanya aset yang pernah dipindai, hari-harinya tumpang tindih, dan tanpa biaya transaksi: gambaran kasar, bukan bukti. Hitung ulang: python3 uji_skor.py")}</p></section>`;
   }
 
@@ -481,6 +501,17 @@
     return `<h3 class="uji-h">${t("Sinyal mana yang berguna?")}</h3>
       <p class="muted">${t("Perubahan harga 20 hari saat kategori sinyal itu bullish dikurangi saat bearish (poin persen). Positif (hijau) = searah dengan hasil; sekitar nol atau merah = di pasar itu kategori ini tidak membantu.")}</p>
       <div class="tbl-wrap"><table class="uji sempit"><thead><tr><th>${t("Kategori sinyal")}</th>${pasar.map((k) => `<th class="r">${NAMA[k]}</th>`).join("")}</tr></thead><tbody>${baris}</tbody></table></div>`;
+  }
+  // Uji skor beli 0–100: perubahan harga 20 hari (dibanding rata-rata pasar) per kelompok skor beli.
+  function ujiBeliHtml(U, NAMA) {
+    const pasar = ["idx", "us", "crypto"].filter((k) => U.pasar[k] && U.pasar[k].skor_beli);
+    if (!pasar.length) return "";
+    const kel = U.pasar[pasar[0]].skor_beli.map((x) => x.kelompok);
+    const sel = (x) => (x && x.n >= 30 ? `<td class="r num ${x.selisih > 0.05 ? "up" : x.selisih < -0.05 ? "down" : "flat"}" title="${t("{n} hari · naik {p}% dari waktu", { n: x.n, p: num(x.naik_pct, 0) })}${x.rencana_n ? " · " + t("rencana beli rata-rata {r}R ({n} hari)", { r: num(x.rencana_r, 2, true), n: x.rencana_n }) : ""}">${num(x.selisih, 1, true)}</td>` : `<td class="r faint">—</td>`);
+    const baris = pasar.map((k) => `<tr><th scope="row">${NAMA[k]}<span class="muted"> · ${t("{n} aset", { n: U.pasar[k].aset })}</span></th>${U.pasar[k].skor_beli.map(sel).join("")}</tr>`).join("");
+    return `<h3 class="uji-h">${t("Skor beli: apakah skor tinggi diikuti hasil lebih baik?")}</h3>
+      <p class="muted">${t("Perubahan harga 20 hari sesudahnya dikurangi rata-rata semua hari di pasar itu (poin persen), per kelompok skor beli. Arahkan kursor untuk persentase hari naik dan hasil rencana beli.")}</p>
+      <div class="tbl-wrap"><table class="uji sempit"><thead><tr><th>${t("Pasar")}</th>${kel.map((x) => `<th class="r num">${esc(x)}</th>`).join("")}</tr></thead><tbody>${baris}</tbody></table></div>`;
   }
   // Uji rencana: mana yang lebih dulu terjadi sesudah rencana muncul.
   function ujiRencanaHtml(U, NAMA) {
@@ -519,5 +550,5 @@
     }).join("");
   }
 
-  root.AT = { esc, fp, num, pct, skorTxt, rp, cls, icon, sevIcon, biasIcon, renderPortofolio, KELAS, MINUS, urutTanda, tagTanda, sejakTanda, baru, tglPendek, sparkline, rsHtml, narasiHtml, dekatTag, aksiHtml, sikapPill, ist, sinyalHtml, poinSkor, ringkasAksi };
+  root.AT = { beliBadge, beliHtml, kelasBeli, esc, fp, num, pct, skorTxt, rp, cls, icon, sevIcon, biasIcon, renderPortofolio, KELAS, MINUS, urutTanda, tagTanda, sejakTanda, baru, tglPendek, sparkline, rsHtml, narasiHtml, dekatTag, aksiHtml, sikapPill, ist, sinyalHtml, poinSkor, ringkasAksi };
 })(typeof window !== "undefined" ? window : globalThis);

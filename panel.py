@@ -22,6 +22,8 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import os
+import subprocess
 import io
 import json
 import math
@@ -514,6 +516,26 @@ def riwayat(q: str, tf: str, pasar: str | None, bahasa: str = "id") -> dict:
     return {"ok": True, "kode": code, "tf": tf, "titik": [[int(t), s] for t, s in titik], "skor": skor, "kalimat": kalimat, "bahasa": bahasa}
 
 
+def skor_beli_aset(kandidat, mkt, code, tf, r, b, rs, berjalan, nama) -> dict | None:
+    """Skor beli 0–100 (wawasan.skor_beli) dari data HARIAN, apa pun timeframe yang sedang dibuka, supaya angkanya
+    sama di Cek aset, panel samping, kartu, dan tab Portofolio. Gagal = None (skor beli tidak ditampilkan)."""
+    try:
+        if tf == "1d":
+            bd, rd, jalan = b, r, berjalan
+        else:
+            prov = next((pv for m_, pv, c_ in kandidat if c_ == code), "yahoo")
+            _, _, bd, _ = tarik([(mkt, prov, code)], "1d")
+            bd = _potong(bd, MAKS_BAR)
+            jalan = tk.fraksi_berjalan(code, mkt, bd["t"][-1], "1d")
+            rd = te.analyze(bd, symbol=nama, market=mkt, tf="1d", live_frac=jalan)
+        bw = te.resample(bd, "1wk", mkt)
+        rw = te.analyze(bw, market=mkt, tf="1wk") if len(bw["c"]) >= 30 else None
+        rs_d = rs if (tf == "1d" and rs is not None) else kekuatan_relatif(code, mkt, bd, "1d")
+        return ws.skor_beli(rd, rw, rs_d)
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def semua_tf(q: str, pasar: str | None, bahasa: str = "id") -> dict:
     """Kesimpulan semua timeframe (1H, 4H, 1D, 1W, 1M) + skor gabungan + saran. Hanya dari data harga.
     Tiap timeframe ditarik sama persis seperti saat timeframe itu dibuka di panel (skornya sama), paralel dan lewat
@@ -568,6 +590,9 @@ def analisa(q: str, tf: str, pasar: str | None, ringkas: bool = False, bahasa: s
     dekat = ws.dekat_level(r)
     simbol = r["symbol"] or nama
     lap = lapisan(r, b, mkt, tf, kuotasi_lain(q, code), bahasa)  # garis analisa untuk chart; hanya dari data harga
+    beli = skor_beli_aset(kandidat, mkt, code, tf, r, b, rs, berjalan, nama)
+    if beli and en:
+        beli["label"] = bh.LABEL_BELI.get(beli["label"], beli["label"])
     if en:
         narasi = bh.narasi_en(r, simbol, fl, rs, dekat, None, berjalan)
         rencana = bh.rencana_aksi_en(r, dekat)  # tanpa posisi: analisa terpisah dari portofolio
@@ -584,7 +609,7 @@ def analisa(q: str, tf: str, pasar: str | None, ringkas: bool = False, bahasa: s
              "skor": r["score"], "label": label, "tren": tren,
              "aksi": aksi, "bendera": fl_t, "berjalan": berjalan,
              "rs": bh.rs_en(rs) if en else rs, "dekat": dekat, "narasi": narasi, "rencana_aksi": rencana,
-             "lapisan": lap}
+             "lapisan": lap, "skor_beli": beli}
     if ringkas:
         # Kartu kecil di halaman chart (ekstensi).
         level = [{"k": k.upper(), "harga": fp(dekat[k]["harga"]), "jarak": persen(dekat[k]["jarak_pct"]),
@@ -594,10 +619,128 @@ def analisa(q: str, tf: str, pasar: str | None, ringkas: bool = False, bahasa: s
         hasil["kartu"] = {"simbol": simbol, "kode": code, "pasar": mkt, "skor": r["score"], "label": label,
                           "singkat": narasi.get("singkat") or narasi["inti"], "tf": tf, "level": level,
                           "berjalan": berjalan is not None, "tanda": tanda, "bahasa": bahasa,
-                          "langkah": (rencana or {}).get("ringkas") or (rencana or {}).get("judul", "")}
+                          "langkah": (rencana or {}).get("ringkas") or (rencana or {}).get("judul", ""),
+                          "beli": {"skor": beli["skor"], "label": beli["label"]} if beli else None}
     if not ringkas:
         hasil["hasil"] = bh.hasil_en(r) if en else r
     return tk._bersihkan(hasil)
+
+
+# ==================================================================
+# PEMINDAI IHSG (pemindai.py sebagai proses terpisah)
+# ==================================================================
+# Semua saham IHSG yang lolos saringan likuiditas. Hanya data harga & data publik IDX; tidak membaca portofolio.
+# Jalan saat tombol "Pindai IHSG" diklik, dan otomatis sekali tiap hari bursa setelah jam pengaturan
+# (ihsg_jam, bawaan 16:30 WIB) selama panel menyala (ihsg_otomatis, bawaan true).
+
+IHSG_DIR = FOLDER / "output" / "ihsg"
+_KUNCI_IHSG = threading.Lock()
+IHSG = {"proses": None, "coba": None}
+
+
+def _baca(p: Path, bawaan=None):
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return bawaan
+
+
+def ihsg_status() -> dict:
+    st = _baca(IHSG_DIR / "status.json", {}) or {}
+    pr = IHSG["proses"]
+    if st.get("berjalan") and pr is not None and pr.poll() is not None:
+        # proses anak sudah keluar tapi status masih "berjalan" (mis. galat sebelum sempat menulis status)
+        st.update(berjalan=False, ok=False, pesan=st.get("pesan") or "Pindai terhenti sebelum selesai (lihat output/ihsg/log.txt).")
+    elif st.get("berjalan") and pr is None:
+        # panel dimulai ulang di tengah pindai: proses lama mungkin masih jalan; anggap terhenti setelah 30 menit
+        try:
+            mulai = datetime.fromisoformat(st.get("mulai") or "")
+            basi = (datetime.now(mulai.tzinfo) - mulai).total_seconds() > 1800
+        except ValueError:
+            basi = True
+        if basi:
+            st.update(berjalan=False, ok=False, pesan=st.get("pesan") or "Pindai terhenti sebelum selesai.")
+    return st
+
+
+def mulai_ihsg() -> bool:
+    with _KUNCI_IHSG:
+        if ihsg_status().get("berjalan"):
+            return False
+        IHSG_DIR.mkdir(parents=True, exist_ok=True)
+        # status ditulis (atomik) SEBELUM proses anak mulai, supaya tidak menimpa fase yang sudah ditulis anak
+        tmp = IHSG_DIR / "status.json.tmp"
+        tmp.write_text(json.dumps({"berjalan": True, "fase": "mulai", "mulai": datetime.now().astimezone().isoformat(timespec="seconds"),
+                                   "selesai": None, "ok": None, "pesan": ""}), encoding="utf-8")
+        os.replace(tmp, IHSG_DIR / "status.json")
+        env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONUTF8": "1"}
+        with open(IHSG_DIR / "log.txt", "w", encoding="utf-8") as log:  # anak memegang salinannya sendiri
+            IHSG["proses"] = subprocess.Popen([sys.executable, str(FOLDER / "pemindai.py")] + (["--offline"] if OFFLINE else []),
+                                              cwd=str(FOLDER), stdout=log, stderr=subprocess.STDOUT, env=env)
+        return True
+
+
+def ihsg_ringkas() -> dict:
+    """Untuk /api/status dan badge ekstensi: jumlah tanda baru yang belum dilihat."""
+    d = _baca(IHSG_DIR / "ihsg.json") or {}
+    dilihat = (_baca(IHSG_DIR / "dilihat.json", {}) or {}).get("id")
+    st = ihsg_status()
+    return {"ada": bool(d), "id": d.get("id"), "waktu": d.get("waktu"), "baru": int(d.get("baru_total") or 0) if d.get("id") != dilihat else 0,
+            "baru_total": int(d.get("baru_total") or 0), "berjalan": bool(st.get("berjalan"))}
+
+
+TAG_EN = {"volatil": "volatile", "berjalan": "live", "baru_lolos": "newly passes"}
+
+
+def ihsg_data(bahasa: str) -> dict:
+    d = _baca(IHSG_DIR / "ihsg.json")
+    out = {"ok": True, "ada": bool(d), "status": ihsg_status(), "ringkas": ihsg_ringkas(),
+           "otomatis": bool(tk.muat_pengaturan().get("ihsg_otomatis", True)), "jam": str(tk.muat_pengaturan().get("ihsg_jam") or "16:30")}
+    if not d:
+        return out
+    if bahasa == "en" and d.get("peringatan"):
+        m = re.match(r"(\d+) dari (\d+) unduhan harga gagal", d["peringatan"])
+        if m:
+            d["peringatan"] = f"{m.group(1)} of {m.group(2)} price downloads failed (probably a network or Yahoo problem); try scanning again later."
+    if bahasa == "en":
+        for a in d.get("aset") or []:
+            a["bendera"] = bh.bendera_en(a.get("bendera"), "idx")
+            a["label"] = bh.LABEL.get(a.get("label"), a.get("label"))
+            a["tren"] = bh.TREN.get(a.get("tren"), a.get("tren"))
+            if a.get("skor_beli"):
+                a["skor_beli"]["label"] = bh.LABEL_BELI.get(a["skor_beli"].get("label"), a["skor_beli"].get("label"))
+            a["langkah"] = a.get("langkah_en") or a.get("langkah")
+    for a in d.get("aset") or []:
+        a.pop("langkah_en", None)
+    out["data"] = d
+    return out
+
+
+def _jadwal_ihsg() -> None:
+    """Pindai otomatis sekali tiap hari bursa (Senin–Jumat) setelah jam ihsg_jam WIB, selama panel menyala."""
+    from datetime import timedelta, timezone as tz
+    wib = tz(timedelta(hours=7))
+    while True:
+        time.sleep(60)
+        try:
+            cfg = tk.muat_pengaturan()
+            if not cfg.get("ihsg_otomatis", True) or OFFLINE:
+                continue
+            now = datetime.now(wib)
+            jj, mm = (int(x) for x in str(cfg.get("ihsg_jam") or "16:30").split(":")[:2])
+            if now.weekday() > 4 or (now.hour, now.minute) < (jj, mm):
+                continue
+            hari = now.strftime("%Y-%m-%d")
+            st = ihsg_status()
+            if st.get("berjalan") or (st.get("ok") and (st.get("tanggal_pindai") or st.get("tanggal")) == hari):
+                continue
+            coba = IHSG["coba"]
+            if coba and coba[0] == hari and (coba[1] >= 2 or time.time() - coba[2] < 1800):
+                continue  # gagal: dicoba lagi paling banyak sekali, 30 menit kemudian
+            IHSG["coba"] = (hari, (coba[1] + 1) if coba and coba[0] == hari else 1, time.time())
+            mulai_ihsg()
+        except Exception:  # noqa: BLE001
+            traceback.print_exc()
 
 
 # ==================================================================
@@ -676,7 +819,7 @@ class Penangan(BaseHTTPRequestHandler):
                     return self._kirim(403, b"data portofolio tidak tersedia di mode analisa", "text/plain")
                 return self._file(FOLDER / "output" / "chart" / Path(u.path[7:]).name)
             if u.path == "/api/status":
-                st = {"ok": True, "versi": tk.VERSI, "offline": OFFLINE, "bahasa": bahasa_aktif()}
+                st = {"ok": True, "versi": tk.VERSI, "offline": OFFLINE, "bahasa": bahasa_aktif(), "ihsg": ihsg_ringkas()}
                 try:  # versi ekstensi di disk: ekstensi memuat ulang dirinya bila versinya tertinggal (pembaruan otomatis)
                     st["ekstensi"] = json.loads((FOLDER / "ekstensi" / "manifest.json").read_text(encoding="utf-8")).get("version")
                 except (OSError, ValueError):
@@ -694,6 +837,8 @@ class Penangan(BaseHTTPRequestHandler):
                 return self._json(analisa(qs.get("q", ""), qs.get("tf", "1d"), qs.get("pasar"), qs.get("ringkas") == "1", bahasa))
             if u.path == "/api/riwayat":
                 return self._json(riwayat(qs.get("q", ""), qs.get("tf", "1d"), qs.get("pasar"), bahasa))
+            if u.path == "/api/ihsg":
+                return self._json(ihsg_data(bahasa) if qs.get("status") != "1" else {"ok": True, "status": ihsg_status(), "ringkas": ihsg_ringkas()})
             if u.path == "/api/semua_tf":
                 return self._json(semua_tf(qs.get("q", ""), qs.get("pasar"), bahasa))
             if u.path in ("/api/portofolio", "/api/pindai") or u.path.startswith("/chart/"):
@@ -748,6 +893,15 @@ class Penangan(BaseHTTPRequestHandler):
             except (ValueError, json.JSONDecodeError):
                 return self._json({"ok": False, "pesan": "daftar tidak valid"}, 400)
             return self._json(atur_pantau(daftar))
+        if u.path == "/api/ihsg/pindai":
+            mulai = mulai_ihsg()
+            time.sleep(0.05)
+            return self._json({"ok": True, "dimulai": mulai, "status": ihsg_status()})
+        if u.path == "/api/ihsg/dilihat":
+            d = _baca(IHSG_DIR / "ihsg.json") or {}
+            if d.get("id"):
+                (IHSG_DIR / "dilihat.json").write_text(json.dumps({"id": d["id"]}), encoding="utf-8")
+            return self._json({"ok": True, "ringkas": ihsg_ringkas()})
         if u.path == "/api/pindai":
             with _KUNCI_PINDAI:  # dua klik beruntun tidak boleh memicu dua pemindaian sekaligus
                 if not PINDAI["berjalan"]:
@@ -776,6 +930,7 @@ def main(argv=None) -> int:
     OFFLINE = args.offline
     HOST_SAH.update({f"127.0.0.1:{args.port}", f"localhost:{args.port}"})
     srv = ThreadingHTTPServer(("127.0.0.1", args.port), Penangan)
+    threading.Thread(target=_jadwal_ihsg, daemon=True).start()
     url = f"http://127.0.0.1:{args.port}/"
     print(f"Panel Analisa Teknikal berjalan di {url}  (Ctrl+C untuk berhenti)")
     if not args.no_browser:

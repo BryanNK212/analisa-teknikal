@@ -8,7 +8,9 @@ Analisa teknikal otomatis untuk **saham IDX, saham AS, kripto, indeks, dan forex
 
 1. **Panel di browser** (`http://127.0.0.1:8768`)
    - **Cek aset**: ketik ticker apa saja, pilih timeframe 5m, 15m, 30m, 1h, 4h, 1D, 1W, atau 1M.
+   - **Skor beli 0–100**: seberapa layak dibeli sekarang dari sisi teknikal (tren 1D+1W, lokasi harga, imbal hasil vs risiko, kekuatan vs pasar, momentum & volume). Juga muncul sebagai kolom di Daftar pantau dan di kartu ekstensi. Bukan jaminan dan tidak menghitung valuasi atau berita.
    - **Kesimpulan semua timeframe**: di tab Ringkasan, skor dan rencana 1H, 4H, 1D, 1W, 1M berdampingan, satu **skor gabungan** (rata-rata tertimbang; 1D dan 1W paling berat), kesimpulan arah jangka pendek/menengah/panjang, dan saran langkah dengan level dari timeframe 1D.
+   - **Pemindai IHSG**: semua saham BEI yang cukup likuid (nilai transaksi rata-rata 20 hari ≥ Rp1 M, harga ≥ Rp50, aktif ≥ 15 dari 20 hari) dianalisa sekaligus; tanda yang baru muncul dibanding hari bursa sebelumnya diberi label Baru. Jalan saat tombol diklik dan otomatis sekali tiap hari bursa setelah 16:30 WIB selama panel menyala; jumlah tanda baru muncul di tab dan di ikon ekstensi. Pindai pertama butuh beberapa menit. Atur di `pengaturan.json` (`ihsg_otomatis`, `ihsg_jam`, `ihsg_saringan`).
    - **Daftar pantau**: ticker pilihanmu sendiri, dianalisa sekaligus dalam satu tabel.
 2. **Ekstensi browser** (Chrome, Edge, Brave, Arc) untuk TradingView, Stockbit, Binance, Tokocrypto, Indodax, Bybit, OKX, Yahoo Finance, dan Google Finance. Saat kamu membuka chart, ekstensi membaca simbolnya, lalu menampilkan kartu skor kecil di halaman itu dan analisa lengkap di panel samping. Di TradingView, garis support/resistance, rencana, trendline, dan pola juga digambar langsung di atas chart.
 3. **Tombol ID | EN** untuk mengganti bahasa di semua tampilan sekaligus. Pilihan bahasa diingat.
@@ -30,7 +32,7 @@ Setiap kali peluncur dibuka, program memeriksa versi terbaru di repo ini. Kalau 
 
 - Versi yang terpasang tertulis di `VERSI.txt`, riwayat pembaruan di `output/perbarui.log`.
 - Berkas yang tertimpa pada pembaruan terakhir disimpan di folder `_lama/`.
-- Tidak ada pemeriksaan terjadwal dan tidak ada notifikasi.
+- Pemeriksaan pembaruan hanya saat peluncur dibuka.
 
 ## Memakai panel
 

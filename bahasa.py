@@ -239,6 +239,12 @@ _ATURAN = [
      r"Oversold (RSI \1) — heavy selling, often followed by a bounce"),
     (r"^(.+?) sedang terbentuk(?: — neckline (.+))?$", lambda m: f"{m.group(1)} forming" + (f" — neckline {m.group(2)}" if m.group(2) else "")),
 ]
+_ATURAN += [
+    # tanda tambahan Pemindai IHSG (pemindai.py)
+    (r"^Lonjakan volume ([\d.,]+)x rata-rata dengan harga naik ([\d.,]+)%$", r"Volume spike \1x average with price up \2%"),
+    (r"^Lonjakan volume ([\d.,]+)x rata-rata dengan harga turun ([\d.,]+)%$", r"Volume spike \1x average with price down \2%"),
+    (r"^Skor beli (\d+) \((menarik|layak dicicil)\)$", lambda m: f"Buy score {m.group(1)} ({ {'menarik': 'attractive', 'layak dicicil': 'worth accumulating'}[m.group(2)] })"),
+]
 _ATURAN = [(re.compile(a), b) for a, b in _ATURAN]
 
 # Kalimat di catatan rencana (bisa beberapa kalimat dalam satu catatan)
@@ -640,6 +646,8 @@ def aset_en(a: dict) -> dict:
         except (KeyError, TypeError, IndexError):
             pass
     e["rs"] = rs_en(a.get("rs"))
+    if a.get("skor_beli"):
+        e["skor_beli"] = {**a["skor_beli"], "label": LABEL_BELI.get(a["skor_beli"].get("label"), a["skor_beli"].get("label"))}
     if a.get("narasi_en"):
         e["narasi"] = a["narasi_en"]
     e.pop("narasi_en", None)
@@ -770,3 +778,6 @@ def kesimpulan_semua_tf_en(hasil: dict) -> dict:
         b["label"] = LABEL.get(b["label"], b["label"])
         b["tren"] = TREN.get(b["tren"], b["tren"])
     return k
+
+
+LABEL_BELI = {"Menarik": "Attractive", "Layak dicicil": "Worth accumulating", "Pantau": "Watch", "Belum layak": "Not yet"}

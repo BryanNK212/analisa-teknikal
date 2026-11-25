@@ -514,7 +514,7 @@ body.embed .baris1 { gap: var(--s3); }
 .lapbahasa a:hover { color: var(--text); }
 
 /* ---------- mode analisa saja (?mandiri=1, juga ?embed=1): tanpa tab Portofolio ---------- */
-body.mandiri #tabPorto, body.mandiri #viewPorto { display: none !important; }
+body.mandiri #tabPorto, body.mandiri #viewPorto, body.mandiri #tabIhsg, body.mandiri #viewIhsg { display: none !important; }
 
 /* ---------- rencana tindakan (Cek aset, panel samping, laporan statis) ---------- */
 .aksi-judul { margin: 0 0 var(--s4); font-size: var(--fs-base); font-weight: 500; line-height: 1.45; color: var(--text); }
@@ -666,3 +666,31 @@ body.embed .arti { right: var(--s3); width: calc(100% - 16px); }
 .uji.sempit { max-width: 560px; }
 .uji th.grp { text-align: center; font-weight: 500; color: var(--text-2); border-bottom: 1px solid var(--line); }
 .uji .gar { border-left: 1px solid var(--line); }
+
+/* Skor beli 0–100 */
+.beli-b { display: inline-block; min-width: 30px; padding: 1px 6px; border-radius: 4px; font: 600 var(--fs-sm) var(--mono); text-align: center; background: rgba(255, 255, 255, .05); }
+.beli { margin: var(--s4) 0 0; }
+.beli-kepala { display: flex; align-items: baseline; gap: var(--s2); flex-wrap: wrap; font-size: var(--fs-sm); color: var(--text-2); }
+.beli-angka { font: 600 var(--fs-lg, 18px) var(--mono); }
+.beli-angka .faint { font-size: var(--fs-sm); font-weight: 500; }
+.beli-meter { position: relative; height: 6px; margin-top: var(--s2); background: var(--line); border-radius: 3px; overflow: hidden; }
+.beli-meter span { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: currentColor; }
+.beli-rinci { margin-top: var(--s2); font-size: var(--fs-sm); color: var(--text-2); }
+.beli-rinci summary { cursor: pointer; color: var(--text-3); }
+.beli-rinci ul { list-style: none; margin: var(--s2) 0 0; padding: 0; display: grid; gap: 4px; }
+.beli-rinci li { display: grid; grid-template-columns: 130px 1fr 44px; gap: var(--s3); align-items: center; }
+.beli-rinci .kbar::after { display: none; }
+.beli-rinci .kbar span.pos { left: 0; background: var(--text-3); }
+.beli-rinci .v { text-align: right; }
+
+/* Pemindai IHSG */
+.tab .hitung { display: inline-block; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 4px; border-radius: 9px; background: var(--neutral); color: #0b0b0c; font: 700 11px/18px var(--mono); text-align: center; vertical-align: 1px; }
+.ihsg-saring { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3); margin-bottom: var(--s4); }
+.ihsg-saring input[type=search] { height: 28px; padding: 0 var(--s3); border-radius: 6px; border: 1px solid var(--line-2); background: var(--raise, #161618); color: var(--text); font: inherit; min-width: 180px; }
+.tag-ihsg { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 3px; font-size: var(--fs-xs); line-height: 16px; border: 1px solid var(--line-2); color: var(--text-3); vertical-align: 1px; }
+.tag-ihsg.volatil { color: var(--neutral); border-color: rgba(224, 166, 75, .45); }
+.tag-ihsg.baru_lolos { color: var(--text-2); }
+.ihsg #tblIhsg .sig { margin-bottom: 2px; }
+.ihsg #ihsgLagi { margin-top: var(--s3); }
+.ihsg-banner { display: block; padding: 6px 12px; background: rgba(224, 166, 75, .14); color: var(--neutral); font-size: var(--fs-sm); text-decoration: none; border-bottom: 1px solid var(--line); }
+.ihsg-banner:hover { background: rgba(224, 166, 75, .22); }

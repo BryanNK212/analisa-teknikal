@@ -65,6 +65,29 @@ async function cekVersiEkstensi() {
 }
 cekVersiEkstensi();
 
+// Pemindai IHSG: badge umum = jumlah tanda baru yang belum dilihat di panel (tab chart tetap menampilkan skornya
+// sendiri). Dicek tiap 5 menit lewat /api/status; dikosongkan setelah tab Pemindai IHSG dibuka di panel.
+async function cekIhsg() {
+  try {
+    const st = await (await fetch(`${SERVER}/api/status`, { cache: "no-store" })).json();
+    catatBahasa(st.bahasa);
+    const n = (st.ihsg && st.ihsg.baru) || 0;
+    chrome.action.setBadgeText({ text: n ? (n > 99 ? "99+" : String(n)) : "" });
+    if (n) {
+      chrome.action.setBadgeBackgroundColor({ color: "#946b1f" });
+      chrome.action.setBadgeTextColor && chrome.action.setBadgeTextColor({ color: "#ffffff" });
+    }
+    chrome.action.setTitle({ title: n ? `Analisa Teknikal — ${n} ${bahasa === "en" ? "new flags in the IDX screener" : "tanda baru di Pemindai IHSG"}` : "Analisa Teknikal" });
+  } catch {
+    chrome.action.setBadgeText({ text: "" });
+  }
+}
+if (chrome.alarms) {
+  chrome.alarms.get("ihsg", (ada) => { if (!ada || ada.periodInMinutes !== 5) chrome.alarms.create("ihsg", { periodInMinutes: 5 }); });
+  chrome.alarms.onAlarm.addListener((a) => { if (a.name === "ihsg") cekIhsg(); });
+}
+cekIhsg();
+
 function siapkan() {
   if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) {
     chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
@@ -133,6 +156,7 @@ async function badge(tabId) {
     const r = await fetch(`${SERVER}/api/analisa?q=${encodeURIComponent(q)}&tf=${encodeURIComponent(tf)}&ringkas=1`);
     d = await r.json();
     cekVersiEkstensi();
+    cekIhsg();
   } catch {
     chrome.action.setBadgeBackgroundColor({ tabId, color: "#3f3f46" });
     chrome.action.setBadgeText({ tabId, text: "off" });

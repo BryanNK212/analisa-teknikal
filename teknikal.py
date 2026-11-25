@@ -53,7 +53,7 @@ import wawasan as ws  # noqa: E402
 import bahasa as bh  # noqa: E402
 
 VERSI = "1.4"
-CHART_VERSI = "8"  # naikkan bila gaya chart PNG berubah, supaya semua chart digambar ulang sekali
+CHART_VERSI = "9"  # naikkan bila gaya chart PNG berubah, supaya semua chart digambar ulang sekali
 TICKER_KURS = "USDIDR=X"
 WIB = timezone(timedelta(hours=7))
 
@@ -64,6 +64,11 @@ PENGATURAN_BAWAAN = {
     "tambahan_pantau": [],
     "periode": "2y",
     "kurs_cadangan": 17500,
+    # Pemindai IHSG (pemindai.py): pindai otomatis sekali tiap hari bursa setelah ihsg_jam WIB bila panel menyala;
+    # ihsg_saringan = "longgar" / "standar" / "ketat" atau objek berisi angka (lihat pemindai.SARINGAN_BAWAAN).
+    "ihsg_otomatis": True,
+    "ihsg_jam": "16:30",
+    "ihsg_saringan": "longgar",
 }
 
 
@@ -480,6 +485,12 @@ def analisa_aset(tk: str, b: dict, pos: dict | None, sektor: str, kurs: float, b
         "dekat": ws.dekat_level(r),
         "rs": ws.kekuatan_relatif(b, acuan[0], acuan[1]) if acuan else None,
     }
+    try:  # Skor beli 0–100 (1D + 1W dari data harian yang sama, lihat wawasan.skor_beli)
+        bw = te.resample(b, "1wk", mk)
+        r_w = te.analyze(bw, market=mk, tf="1wk") if len(bw["c"]) >= 30 else None
+        info["skor_beli"] = ws.skor_beli(r, r_w, info["rs"])
+    except Exception:  # noqa: BLE001
+        info["skor_beli"] = None
     if pos:
         kali = kurs if pos["mata_uang"] == "USD" else 1.0
         nilai_idr = pos["lembar"] * harga * kali

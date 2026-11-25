@@ -21,6 +21,8 @@ Sejak mesin 1.3.0 ada dua uji tambahan dari perhitungan yang sama:
   keluar di target 1, di close yang menembus Stop (bisa lebih dalam dari −1R bila ada gap), atau di close bar ke-40.
   Rata-rata R ini lebih jujur daripada persentase "target dulu" saja, karena rugi saat kena stop sering > 1R.
 - Kesimpulan otomatis per pasar butuh cukup banyak aset (lihat ASET_MIN di tampilan).
+- Skor beli 0–100 (wawasan.skor_beli: 1D + 1W resample harian + kekuatan relatif vs pembanding): return 20 hari
+  per kelompok 0–39 / 40–59 / 60–79 / 80–100, dan hasil rencana beli dalam R di tiap kelompok.
 
 Keterbatasan (ditulis juga di hasil): sampel hanya aset yang pernah dipindai (bias pilihan), hari-hari saling
 tumpang tindih (return 20 hari berurutan tidak independen), dan tanpa biaya transaksi. Anggap ini gambaran kasar,
@@ -44,6 +46,7 @@ import teknikal as tk  # noqa: E402
 import wawasan as ws  # noqa: E402
 import ta_engine as te  # noqa: E402
 
+KELOMPOK_BELI = [("0–39", 0, 39), ("40–59", 40, 59), ("60–79", 60, 79), ("80–100", 80, 100)]
 KELOMPOK = [("≤ −50", -101, -50), ("−49…−20", -49, -20), ("−19…19", -19, 19), ("20…49", 20, 49), ("≥ 50", 50, 101)]
 HORISON = (5, 20)
 KATEGORI = ("Tren", "Momentum", "Pola chart", "Trendline", "Candlestick", "Divergence", "Volume", "Breakout", "Lokasi")
@@ -66,18 +69,28 @@ def _satu(nama_file: str):
     if b is None or len(b["c"]) < 260:
         return nama_file, []
     pasar = _pasar(nama_file)
+    ac = ws.acuan_untuk(ticker, pasar)
+    ba = tk.muat_cache(ac[0]) if ac else None
     c, hi, lo = b["c"], b["h"], b["l"]
     baris = []
     for i in range(200, len(c) - 1):
+        bi = {k: v[: i + 1] for k, v in b.items()}
         try:
-            a = te.analyze({k: v[: i + 1] for k, v in b.items()}, market=pasar, tf="1d")
+            a = te.analyze(bi, market=pasar, tf="1d")
         except Exception:  # noqa: BLE001
             continue
+        try:
+            bw = te.resample(bi, "1wk", pasar)
+            aw = te.analyze(bw, market=pasar, tf="1wk") if len(bw["c"]) >= 30 else None
+            rs = ws.kekuatan_relatif(bi, ba, ac[1]) if ba is not None else None
+            sb = ws.skor_beli(a, aw, rs)["skor"]
+        except Exception:  # noqa: BLE001
+            sb = None
         r = {h: (float(c[i + h]) / float(c[i]) - 1) * 100 if i + h < len(c) else None for h in HORISON}
         kat = {}
         for x in a["signals"]:
             kat[x["cat"]] = kat.get(x["cat"], 0.0) + x["score"]
-        baris.append((float(b["t"][i]), int(a["score"]), r[5], r[20], kat, _hasil_rencana(a, c, hi, lo, i)))
+        baris.append((float(b["t"][i]), int(a["score"]), r[5], r[20], kat, _hasil_rencana(a, c, hi, lo, i), sb))
     return nama_file, baris
 
 
@@ -189,6 +202,18 @@ def main() -> None:
             blok[f"h{h}"] = {"dasar": dasar, "kelompok": kel, "sebaran": sebaran}
         blok["kategori"] = _uji_kategori(data, blok["h20"]["dasar"].get("rata", 0.0))
         blok["rencana"] = _uji_rencana(data)
+        dasar20 = blok["h20"]["dasar"].get("rata", 0.0)
+        beli = []
+        for label, lo_, hi_ in KELOMPOK_BELI:
+            x = [r for r in data if r[6] is not None and lo_ <= r[6] <= hi_]
+            rr = _ringkas([r[3] for r in x if r[3] is not None])
+            if rr["n"]:
+                rr["selisih"] = rr["rata"] - dasar20
+            Rs = [r[5][3] for r in x if r[5] and r[5][0] == "beli" and r[5][3] is not None]
+            if Rs:
+                rr["rencana_n"], rr["rencana_r"] = len(Rs), sum(Rs) / len(Rs)
+            beli.append({"kelompok": label, **rr})
+        blok["skor_beli"] = beli
         hasil["pasar"][pasar] = blok
     hasil["horison_rencana"] = HORISON_RENCANA
     hasil["catatan"] = ("Sampel hanya aset yang pernah dipindai (bias pilihan); hari-hari tumpang tindih sehingga tidak "
@@ -204,6 +229,7 @@ def main() -> None:
                 if k["n"]:
                     print(f"   {k['kelompok']:>9}  n={k['n']:5d}  rata {k['rata']:+6.2f}%  selisih {k['selisih']:+6.2f}  naik {k['naik_pct']:4.0f}%")
         print(" kategori (20 hari, bullish − bearish): " + " · ".join(f"{k['kategori']} {k['beda']:+.1f}" for k in blok["kategori"] if "beda" in k))
+        print(" skor beli (20 hari, selisih vs rata-rata): " + " · ".join(f"{k['kelompok']} {k['selisih']:+.1f} (n={k['n']})" for k in blok["skor_beli"] if k.get("n")))
         rb, rh = blok["rencana"]["beli"], blok["rencana"]["hindari"]
         if rb["n"]:
             print(f" rencana beli (n={rb['n']}): target 1 dulu {rb['target']:.0f}% · stop dulu {rb['stop']:.0f}% · belum {rb['belum']:.0f}%"

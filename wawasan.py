@@ -270,7 +270,7 @@ def dekat_level(r: dict) -> dict:
 _KUNCI = threading.Lock()
 _MEMORI: dict[tuple, list] = {}
 FILE_RIWAYAT = FOLDER / "cache" / "skor_harian.json"
-VERSI_RIWAYAT = "1.4.0|2"  # naikkan hanya bila skor mesin berubah (1.3.0: skala skor baru), supaya cache tidak dihitung ulang
+VERSI_RIWAYAT = "1.4.1|1"  # naikkan hanya bila skor mesin berubah (1.3.0: skala skor baru), supaya cache tidak dihitung ulang
 
 
 def _muat_riwayat() -> dict:
@@ -863,8 +863,12 @@ def kesimpulan_semua_tf(hasil: dict, T: dict | None = None, fp=None, pct=None, r
     a = float(rd["indicators"].get("atr14") or harga * 0.02)
     s1 = sup[0] if sup else harga - 2 * a
     r1 = res[0] if res else harga + 2 * a
+    # Batas batal bawaan di bawah S1 (S2 bila cukup dekat, atau S1 − 0,5 ATR), supaya "cicil dekat S1" dan "batal
+    # di bawah ..." tidak menyebut harga yang sama (25 Nov: dulu keduanya S1 bila rencana 1D bukan beli).
+    s2 = sup[1] if len(sup) > 1 and s1 - sup[1] <= 2 * a else None
+    batal = s2 if s2 is not None else te.round_price(s1 - 0.5 * a, mk)
     lv = {"s1": fp(s1), "s1_jarak": pct((s1 / harga - 1) * 100), "r1": fp(r1), "naik": fp(r1), "turun": fp(s1),
-          "zona": fp(s1), "batal": fp(s1), "konfirmasi": fp(r1)}
+          "zona": fp(s1), "batal": fp(batal), "konfirmasi": fp(r1)}
     try:
         if p["bias"] == "long":
             lo, hi = sorted(float(x) for x in p["entry_zone"][:2])
@@ -879,3 +883,81 @@ def kesimpulan_semua_tf(hasil: dict, T: dict | None = None, fp=None, pct=None, r
     return {"skor": skor, "label": label_skor(skor), "kasus": kasus, "kesimpulan": T[kasus], "saran": saran,
             "tf": baris, "horizon": {k: (None if v is None else int(round(v))) for k, v in hz.items()},
             "bobot": {tf: BOBOT_TF[tf] for tf in tfs}}
+
+
+# ------------------------------------------------------------------
+# Skor beli 0–100 (1.4.0)
+# ------------------------------------------------------------------
+# Satu angka "seberapa layak dibeli sekarang" dari sisi teknikal saja (tanpa valuasi/fundamental/berita).
+# Sengaja hanya dari data harian (1D + 1W hasil resample harian) supaya angkanya sama di Cek aset, panel samping,
+# kartu ekstensi, tab Portofolio, dan bisa diuji ke data lama (uji_skor.py).
+BOBOT_BELI = {"tren": 40, "lokasi": 20, "rr": 15, "rs": 15, "konfirmasi": 10}
+LABEL_BELI = [(80, "Menarik"), (60, "Layak dicicil"), (40, "Pantau"), (0, "Belum layak")]
+
+
+def label_beli(skor: int) -> str:
+    return next(nama for batas, nama in LABEL_BELI if skor >= batas)
+
+
+def _jepit(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
+    return max(lo, min(hi, x))
+
+
+def skor_beli(r_d: dict, r_w: dict | None = None, rs: dict | None = None) -> dict:
+    """r_d = analyze() harian, r_w = analyze() mingguan (resample harian), rs = kekuatan_relatif harian (rs20).
+
+    Komponen (poin maksimal): tren 1D+1W (40), lokasi harga terhadap area beli/support dan RSI (20),
+    imbal hasil vs risiko rencana 1D (15), kekuatan relatif 20 hari vs pasar (15), konfirmasi momentum & volume (10).
+    Bila rata-rata skor 1D dan 1W masih negatif, skor dibatasi 59 ("dibatasi": True).
+    Mengembalikan {"skor", "label", "komponen": {nama: poin}, "maks": BOBOT_BELI}."""
+    B = BOBOT_BELI
+    harga = float(r_d["price"])
+    ind = r_d["indicators"]
+    atr = float(ind.get("atr14") or 0) or harga * 0.02
+    rsi = ind.get("rsi14")
+    p = r_d["plan"]
+    s_d = float(r_d["score"])
+    s_w = float(r_w["score"]) if r_w else s_d
+    k = {}
+    # 1. Tren: rata-rata skor 1D dan 1W (−100..100) -> 0..1
+    k["tren"] = B["tren"] * _jepit((0.5 * s_d + 0.5 * s_w + 100) / 200)
+    # 2. Lokasi: di area beli / dekat support = baik; jauh di atas area beli atau RSI jenuh beli = mengejar harga.
+    #    Catatan 25 Nov: karena batas atas area beli rencana 1D hampir selalu = harga, komponen ini dalam praktik
+    #    berarti "rencana beli aktif dan RSI < 70" (20/20) vs RSI ≥ 70 (6/20). Dua rumus kontinu (jarak ke S1/EMA21,
+    #    potongan bila menempel di bawah R1) sudah diuji pada data yang sama dan memisahkan hasil 20 hari lebih buruk
+    #    (beda kelompok 80–100 vs 0–39: +2,3 rumus ini, +0,3 kontinu, +1,0 dengan potongan R1), jadi rumus ini dipertahankan.
+    sup = [float(s["price"]) for s in r_d.get("support") or []]
+    res = [float(s["price"]) for s in r_d.get("resistance") or []]
+    if p["bias"] == "long":
+        lo, hi = sorted(float(x) for x in p["entry_zone"][:2])
+        jauh = (harga - hi) / atr
+        lok = 1.0 if jauh <= 0.002 * harga / atr else 0.6 if jauh <= 1 else 0.3 if jauh <= 2 else 0.1
+    elif p["bias"] == "short":
+        lok = 0.2
+    else:
+        dekat_s = bool(sup) and (harga - sup[0]) <= atr
+        dekat_r = bool(res) and (res[0] - harga) <= atr
+        lok = 0.7 if dekat_s and not dekat_r else 0.3 if dekat_r and not dekat_s else 0.5
+    if rsi is not None and rsi >= 70:
+        lok = min(lok, 0.3)
+    k["lokasi"] = B["lokasi"] * lok
+    # 3. Imbal hasil vs risiko (R:R target 1 rencana 1D)
+    rr1 = (p.get("rr") or [None])[0] if p["bias"] == "long" else None
+    if rr1 is not None:
+        k["rr"] = B["rr"] * _jepit(rr1 / 2.0)
+    else:
+        k["rr"] = B["rr"] * (0.4 if p["bias"] == "wait" else 0.1)
+    # 4. Kekuatan relatif 20 hari: −10% .. +10% -> 0..1 (tanpa pembanding = tengah)
+    rs20 = (rs or {}).get("rs20")
+    k["rs"] = B["rs"] * (_jepit((rs20 + 10) / 20) if rs20 is not None else 0.5)
+    # 5. Konfirmasi: jumlah poin mentah Momentum + Volume harian, −3 .. +3 -> 0..1
+    mv = sum(float(x["score"]) for x in r_d.get("signals") or [] if x.get("cat") in ("Momentum", "Volume"))
+    k["konfirmasi"] = B["konfirmasi"] * _jepit((mv + 3) / 6)
+    skor = int(round(sum(k.values())))
+    # Selama rata-rata tren 1D+1W masih negatif, paling tinggi "Pantau" (59): selaras dengan saran semua timeframe
+    # ("beli baru tunggu tren besar membaik"). Di uji data lama batas ini tidak mengubah hasil per kelompok.
+    dibatasi = (0.5 * s_d + 0.5 * s_w) < 0 and skor > 59
+    if dibatasi:
+        skor = 59
+    return {"skor": skor, "label": label_beli(skor), "komponen": {n: round(v, 1) for n, v in k.items()}, "maks": dict(B),
+            "dibatasi": dibatasi}
