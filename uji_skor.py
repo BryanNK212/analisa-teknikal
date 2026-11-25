@@ -22,7 +22,7 @@ Sejak mesin 1.3.0 ada dua uji tambahan dari perhitungan yang sama:
   Rata-rata R ini lebih jujur daripada persentase "target dulu" saja, karena rugi saat kena stop sering > 1R.
 - Kesimpulan otomatis per pasar butuh cukup banyak aset (lihat ASET_MIN di tampilan).
 - Skor beli 0–100 (wawasan.skor_beli: 1D + 1W resample harian + kekuatan relatif vs pembanding): return 20 hari
-  per kelompok 0–39 / 40–59 / 60–79 / 80–100, dan hasil rencana beli dalam R di tiap kelompok.
+  per kelompok label 0–39 / 40–69 / 70–79 / 80–100, dan hasil rencana beli dalam R di tiap kelompok.
 
 Keterbatasan (ditulis juga di hasil): sampel hanya aset yang pernah dipindai (bias pilihan), hari-hari saling
 tumpang tindih (return 20 hari berurutan tidak independen), dan tanpa biaya transaksi. Anggap ini gambaran kasar,
@@ -46,7 +46,7 @@ import teknikal as tk  # noqa: E402
 import wawasan as ws  # noqa: E402
 import ta_engine as te  # noqa: E402
 
-KELOMPOK_BELI = [("0–39", 0, 39), ("40–59", 40, 59), ("60–79", 60, 79), ("80–100", 80, 100)]
+KELOMPOK_BELI = [("0–39", 0, 39), ("40–69", 40, 69), ("70–79", 70, 79), ("80–100", 80, 100)]  # = batas label
 KELOMPOK = [("≤ −50", -101, -50), ("−49…−20", -49, -20), ("−19…19", -19, 19), ("20…49", 20, 49), ("≥ 50", 50, 101)]
 HORISON = (5, 20)
 KATEGORI = ("Tren", "Momentum", "Pola chart", "Trendline", "Candlestick", "Divergence", "Volume", "Breakout", "Lokasi")

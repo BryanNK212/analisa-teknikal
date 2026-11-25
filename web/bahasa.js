@@ -177,8 +177,11 @@
     "Baru masuk saringan likuiditas dibanding pindai sebelumnya": "Newly passes the liquidity filter compared with the previous scan", "Panel lokal tidak merespons.": "The local panel is not responding.",
     "Skor beli": "Buy score", "Beli": "Buy", "Rincian": "Breakdown", "Skor beli {x}/100 · {label}": "Buy score {x}/100 · {label}",
     "Tren 1D+1W": "Trend 1D+1W", "Lokasi harga": "Price location", "Imbal hasil vs risiko": "Reward vs risk", "Momentum & volume": "Momentum & volume",
-    "Dari data harian (1D + 1W), sama di semua tampilan. Teknikal saja: valuasi, laporan keuangan, dan berita tidak dihitung. 0–39 belum layak · 40–59 pantau · 60–79 layak dicicil · 80–100 menarik.":
-      "From daily data (1D + 1W), the same in every view. Technical only: valuation, financial reports and news are not included. 0–39 not yet · 40–59 watch · 60–79 worth accumulating · 80–100 attractive.",
+    "Dari data harian (1D + 1W), sama di semua tampilan. Teknikal saja: valuasi, laporan keuangan, dan berita tidak dihitung. 0–39 belum layak · 40–69 pantau · 70–79 layak dicicil (tren rata-rata ≥ +20) · 80–100 menarik (tren ≥ +40, R:R ≥ 1,5, saham IDX nilai transaksi ≥ Rp5 M).":
+      "From daily data (1D + 1W), the same in every view. Technical only: valuation, financial reports and news are not included. 0–39 not yet · 40–69 watch · 70–79 worth accumulating (average trend ≥ +20) · 80–100 attractive (trend ≥ +40, R:R ≥ 1.5, IDX stocks value traded ≥ IDR 5B).",
+    "tren 1D+1W rata-rata {x} (perlu ≥ {m})": "average 1D+1W trend {x} (needs ≥ {m})", "belum ada rencana beli (R:R)": "no buy plan yet (R:R)",
+    "R:R {x} (perlu ≥ {m})": "R:R {x} (needs ≥ {m})", "nilai transaksi rata-rata Rp{x} M (perlu ≥ Rp{m} M)": "average value traded IDR {x}B (needs ≥ IDR {m}B)",
+    "Dibatasi {ke}: {alasan}.": "Capped at {ke}: {alasan}.",
     "Kesimpulan semua timeframe": "All-timeframe conclusion", "Menghitung semua timeframe…": "Calculating all timeframes…",
     "Skor semua timeframe": "All-timeframe score", "Rata-rata tertimbang skor 1H, 4H, 1D, 1W, dan 1M": "Weighted average of the 1H, 4H, 1D, 1W and 1M scores",
     "Skor dan rencana per timeframe": "Score and plan per timeframe", "Saran": "Suggestions",

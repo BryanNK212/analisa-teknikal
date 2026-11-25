@@ -189,11 +189,19 @@
     return `<ul class="items">${ada.map(li).join("")}</ul>` + (nol.length ? `<details class="sig-nol"><summary>${t("{n} keterangan lain (tidak mengubah skor)", { n: nol.length })}</summary><ul class="items">${nol.map(li).join("")}</ul></details>` : "");
   }
   // Skor beli 0–100 (wawasan.skor_beli): seberapa layak dibeli sekarang, dari sisi teknikal saja.
-  const kelasBeli = (x) => (x >= 60 ? "up" : x >= 40 ? "flat" : "down");
+  const kelasBeli = (x) => (x >= 70 ? "up" : x >= 40 ? "flat" : "down");
+  // Alasan skor beli dibatasi (wawasan.skor_beli -> batas.alasan)
+  function alasanBatas(b) {
+    if (!b || !b.alasan) return "";
+    const isi = b.alasan.map((a) => a.k === "tren" ? t("tren 1D+1W rata-rata {x} (perlu ≥ {m})", { x: skorTxt(a.nilai), m: a.min ? "+" + a.min : "0" })
+      : a.k === "rr" ? (a.nilai == null ? t("belum ada rencana beli (R:R)") : t("R:R {x} (perlu ≥ {m})", { x: num(a.nilai, 1), m: num(a.min, 1) }))
+      : t("nilai transaksi rata-rata Rp{x} M (perlu ≥ Rp{m} M)", { x: num(a.nilai / 1e9, 1), m: num(a.min / 1e9, 0) })).join("; ");
+    return t("Dibatasi {ke}: {alasan}.", { ke: b.ke, alasan: isi });
+  }
   const NAMA_KOMP = { tren: "Tren 1D+1W", lokasi: "Lokasi harga", rr: "Imbal hasil vs risiko", rs: "vs pasar", konfirmasi: "Momentum & volume" };
   function beliBadge(sb) {
     if (!sb || sb.skor == null) return `<span class="faint">—</span>`;
-    return `<span class="beli-b ${kelasBeli(sb.skor)}" title="${esc(t("Skor beli {x}/100 · {label}", { x: sb.skor, label: sb.label }))}">${sb.skor}</span>`;
+    return `<span class="beli-b ${kelasBeli(sb.skor)}" title="${esc(t("Skor beli {x}/100 · {label}", { x: sb.skor, label: sb.label }) + (sb.batas ? " · " + alasanBatas(sb.batas) : ""))}">${sb.skor}</span>`;
   }
   function beliHtml(sb) {
     if (!sb || sb.skor == null) return "";
@@ -201,9 +209,9 @@
     const komp = Object.entries(sb.komponen || {}).map(([k, v]) => `<li><span>${esc(t(NAMA_KOMP[k] || k))}</span><span class="kbar" aria-hidden="true"><span class="pos" style="width:${(maks[k] ? (v / maks[k]) * 100 : 0).toFixed(0)}%"></span></span><span class="v num">${num(v, 0)}/${maks[k] || "?"}</span></li>`).join("");
     return `<div class="beli"><div class="beli-kepala"><span>${t("Skor beli")}</span><span class="beli-angka ${kelasBeli(sb.skor)}">${sb.skor}<span class="faint">/100</span></span><span class="${kelasBeli(sb.skor)}">${esc(sb.label)}</span></div>
       <div class="beli-meter" role="img" aria-label="${esc(t("Skor beli {x}/100 · {label}", { x: sb.skor, label: sb.label }))}"><span class="${kelasBeli(sb.skor)}" style="width:${Math.max(2, Math.min(100, sb.skor))}%"></span></div>
-      ${sb.dibatasi ? `<p class="note">${t("Dibatasi 59 (Pantau) karena tren 1D+1W rata-rata masih turun.")}</p>` : ""}
+      ${sb.batas ? `<p class="note">${esc(alasanBatas(sb.batas))}</p>` : sb.dibatasi ? `<p class="note">${t("Dibatasi 59 (Pantau) karena tren 1D+1W rata-rata masih turun.")}</p>` : ""}
       <details class="beli-rinci"><summary>${t("Rincian")}</summary><ul>${komp}</ul>
-      <p class="note">${t("Dari data harian (1D + 1W), sama di semua tampilan. Teknikal saja: valuasi, laporan keuangan, dan berita tidak dihitung. 0–39 belum layak · 40–59 pantau · 60–79 layak dicicil · 80–100 menarik.")}</p></details></div>`;
+      <p class="note">${t("Dari data harian (1D + 1W), sama di semua tampilan. Teknikal saja: valuasi, laporan keuangan, dan berita tidak dihitung. 0–39 belum layak · 40–69 pantau · 70–79 layak dicicil (tren rata-rata ≥ +20) · 80–100 menarik (tren ≥ +40, R:R ≥ 1,5, saham IDX nilai transaksi ≥ Rp5 M).")}</p></details></div>`;
   }
   const dekatTag = (x) => (x && x.dekat ? `<span class="dekat" title="${t("Harga sangat dekat level ini")}">${t("dekat")}</span>` : "");
   const KELAS = { idx: t("Saham IDX"), us: t("Saham/ETF AS"), crypto: t("Kripto") };

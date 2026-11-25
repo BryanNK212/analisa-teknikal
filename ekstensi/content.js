@@ -339,7 +339,7 @@
           <div class="isi">
             <div class="vonis"><span class="skor mono ${k}">${esc(skorTxt(d.skor))}</span>
               <div><div class="label ${k}">${esc(d.label)}</div><div class="simbol" title="${esc(d.simbol)} · ${esc(d.singkat)}"><b>${esc(d.simbol)}</b> · ${esc(d.singkat)}</div></div></div>
-            ${d.beli && d.beli.skor != null ? (() => { const kb = d.beli.skor >= 60 ? "up" : d.beli.skor >= 40 ? "flat" : "down"; return `<div class="beli" title="${tk("Skor beli")} ${d.beli.skor}/100 · ${esc(d.beli.label)}"><span>${tk("Skor beli")}</span><b class="${kb}">${d.beli.skor}</b><span class="meter ${kb}" aria-hidden="true"><i style="width:${Math.max(2, Math.min(100, d.beli.skor))}%"></i></span><span class="${kb}">${esc(d.beli.label)}</span></div>`; })() : ""}
+            ${d.beli && d.beli.skor != null ? (() => { const kb = d.beli.skor >= 70 ? "up" : d.beli.skor >= 40 ? "flat" : "down"; return `<div class="beli" title="${tk("Skor beli")} ${d.beli.skor}/100 · ${esc(d.beli.label)}"><span>${tk("Skor beli")}</span><b class="${kb}">${d.beli.skor}</b><span class="meter ${kb}" aria-hidden="true"><i style="width:${Math.max(2, Math.min(100, d.beli.skor))}%"></i></span><span class="${kb}">${esc(d.beli.label)}</span></div>`; })() : ""}
             ${lv ? `<div class="level">${lv}</div>` : ""}
             ${tanda ? `<ul aria-label="${tk("Tanda")}">${tanda}</ul>` : ""}
             ${d.langkah ? `<p class="langkah" title="${tk("Rencana tindakan")}"><b>→</b> ${esc(d.langkah)}</p>` : ""}

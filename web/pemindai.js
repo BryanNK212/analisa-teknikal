@@ -113,7 +113,7 @@
           <button type="button" class="chip sans" data-arah="semua" aria-pressed="${P.saring.arah === "semua"}">${t("Semua arah")}</button>
           <button type="button" class="chip sans" data-arah="naik" aria-pressed="${P.saring.arah === "naik"}">${t("Bullish")}</button>
           <button type="button" class="chip sans" data-arah="turun" aria-pressed="${P.saring.arah === "turun"}">${t("Bearish")}</button>
-          ${[0, 40, 60, 80].map((x) => `<button type="button" class="chip sans" data-beli="${x}" aria-pressed="${P.saring.beli === x}">${x ? t("Skor beli ≥ {x}", { x }) : t("Semua skor beli")}</button>`).join("")}
+          ${[0, 40, 70, 80].map((x) => `<button type="button" class="chip sans" data-beli="${x}" aria-pressed="${P.saring.beli === x}">${x ? t("Skor beli ≥ {x}", { x }) : t("Semua skor beli")}</button>`).join("")}
         </div>
         <input type="search" id="ihsgCari" placeholder="${t("Cari kode, mis. BBRI")}" value="${esc(P.saring.cari)}" aria-label="${t("Cari kode saham")}">
         <span class="muted" id="ihsgJumlah"></span>

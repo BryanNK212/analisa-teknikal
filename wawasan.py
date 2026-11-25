@@ -892,7 +892,14 @@ def kesimpulan_semua_tf(hasil: dict, T: dict | None = None, fp=None, pct=None, r
 # Sengaja hanya dari data harian (1D + 1W hasil resample harian) supaya angkanya sama di Cek aset, panel samping,
 # kartu ekstensi, tab Portofolio, dan bisa diuji ke data lama (uji_skor.py).
 BOBOT_BELI = {"tren": 40, "lokasi": 20, "rr": 15, "rs": 15, "konfirmasi": 10}
-LABEL_BELI = [(80, "Menarik"), (60, "Layak dicicil"), (40, "Pantau"), (0, "Belum layak")]
+LABEL_BELI = [(80, "Menarik"), (70, "Layak dicicil"), (40, "Pantau"), (0, "Belum layak")]
+# Syarat label (25 Nov 2026). Di uji data lama, menaikkan angka batas saja tidak memperbaiki hasil; yang membantu adalah
+# syarat tambahan. "Menarik" (≥ 80): tren 1D+1W rata-rata ≥ +40, R:R target 1 ≥ 1,5, dan untuk saham IDX nilai
+# transaksi rata-rata 20 hari ≥ Rp5 M (saham tipis mudah digerakkan; syarat ini tidak bisa diuji karena cache uji hanya
+# berisi saham likuid). IDX: +5,0 poin vs pasar dalam 20 hari dan rencana beli +0,22R (sebelumnya +2,5 / −0,02R).
+# "Layak dicicil" (70–79): tren rata-rata ≥ +20. Yang tidak memenuhi syarat dibatasi di 79 / 69.
+SYARAT_MENARIK = {"tren": 40, "rr": 1.5, "nilai_idr": 5e9}
+SYARAT_DICICIL = {"tren": 20}
 
 
 def label_beli(skor: int) -> str:
@@ -908,7 +915,8 @@ def skor_beli(r_d: dict, r_w: dict | None = None, rs: dict | None = None) -> dic
 
     Komponen (poin maksimal): tren 1D+1W (40), lokasi harga terhadap area beli/support dan RSI (20),
     imbal hasil vs risiko rencana 1D (15), kekuatan relatif 20 hari vs pasar (15), konfirmasi momentum & volume (10).
-    Bila rata-rata skor 1D dan 1W masih negatif, skor dibatasi 59 ("dibatasi": True).
+    Bila rata-rata skor 1D dan 1W masih negatif, skor dibatasi 59; "Menarik" dan "Layak dicicil" punya syarat tambahan
+    (SYARAT_MENARIK, SYARAT_DICICIL). "batas": {"ke": 59|69|79, "alasan": [{"k": "tren"|"rr"|"nilai", "nilai", "min"}]}.
     Mengembalikan {"skor", "label", "komponen": {nama: poin}, "maks": BOBOT_BELI}."""
     B = BOBOT_BELI
     harga = float(r_d["price"])
@@ -954,10 +962,24 @@ def skor_beli(r_d: dict, r_w: dict | None = None, rs: dict | None = None) -> dic
     mv = sum(float(x["score"]) for x in r_d.get("signals") or [] if x.get("cat") in ("Momentum", "Volume"))
     k["konfirmasi"] = B["konfirmasi"] * _jepit((mv + 3) / 6)
     skor = int(round(sum(k.values())))
+    tren = 0.5 * s_d + 0.5 * s_w
+    batas = None
     # Selama rata-rata tren 1D+1W masih negatif, paling tinggi "Pantau" (59): selaras dengan saran semua timeframe
     # ("beli baru tunggu tren besar membaik"). Di uji data lama batas ini tidak mengubah hasil per kelompok.
-    dibatasi = (0.5 * s_d + 0.5 * s_w) < 0 and skor > 59
-    if dibatasi:
-        skor = 59
+    if tren < 0 and skor > 59:
+        skor, batas = 59, {"ke": 59, "alasan": [{"k": "tren", "nilai": round(tren), "min": 0}]}
+    if skor >= 80:
+        alasan = []
+        if tren < SYARAT_MENARIK["tren"]:
+            alasan.append({"k": "tren", "nilai": round(tren), "min": SYARAT_MENARIK["tren"]})
+        if rr1 is None or rr1 < SYARAT_MENARIK["rr"]:
+            alasan.append({"k": "rr", "nilai": None if rr1 is None else round(rr1, 1), "min": SYARAT_MENARIK["rr"]})
+        nilai = float(ind.get("volume_avg20") or 0) * harga
+        if r_d.get("market") == "idx" and nilai < SYARAT_MENARIK["nilai_idr"]:
+            alasan.append({"k": "nilai", "nilai": round(nilai), "min": SYARAT_MENARIK["nilai_idr"]})
+        if alasan:
+            skor, batas = 79, {"ke": 79, "alasan": alasan}
+    if 70 <= skor and tren < SYARAT_DICICIL["tren"]:
+        skor, batas = 69, {"ke": 69, "alasan": [{"k": "tren", "nilai": round(tren), "min": SYARAT_DICICIL["tren"]}]}
     return {"skor": skor, "label": label_beli(skor), "komponen": {n: round(v, 1) for n, v in k.items()}, "maks": dict(B),
-            "dibatasi": dibatasi}
+            "dibatasi": batas is not None, "batas": batas}

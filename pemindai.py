@@ -431,7 +431,7 @@ def _analisa_satu(arg):
                 fl.append({"level": "hijau", "teks": f"Lonjakan volume {vr:.1f}x rata-rata dengan harga naik {chg:.1f}%"})
             elif chg <= -3:
                 fl.append({"level": "oranye", "teks": f"Lonjakan volume {vr:.1f}x rata-rata dengan harga turun {abs(chg):.1f}%"})
-        if sb["skor"] >= 60:
+        if sb["skor"] >= 70:
             fl.append({"level": "hijau", "teks": f"Skor beli {sb['skor']} ({sb['label'].lower()})"})
         ra = ws.rencana_aksi(r)
         ra_en = bh.rencana_aksi_en(r)
