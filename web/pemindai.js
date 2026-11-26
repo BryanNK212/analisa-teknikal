@@ -66,7 +66,7 @@
       if (b && b.dataset.k === k) th.setAttribute("aria-sort", dir > 0 ? "ascending" : "descending"); else th.removeAttribute("aria-sort");
     });
     const tb = el.querySelector("#tblIhsg tbody");
-    tb.innerHTML = rows.length ? rows.slice(0, batas).map(baris).join("") : `<tr class="empty-row"><td colspan="9">${t("Tidak ada saham untuk saringan ini.")}</td></tr>`;
+    tb.innerHTML = rows.length ? rows.slice(0, batas).map(baris).join("") : `<tr class="empty-row"><td colspan="${el.querySelectorAll("#tblIhsg thead th").length || 7}">${t("Tidak ada saham untuk saringan ini.")}</td></tr>`;
     const lagi = el.querySelector("#ihsgLagi");
     lagi.hidden = rows.length <= batas;
     lagi.textContent = t("Tampilkan semua ({n})", { n: rows.length });

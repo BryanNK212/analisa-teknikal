@@ -44,6 +44,8 @@
   }
 
   // ---------- navigasi ----------
+  // Saham dari Pemindai IHSG / Gabungan selalu saham IDX: pilihan pasar di Cek aset dikembalikan ke otomatis.
+  function pasarOtomatis() { state.pasar = "auto"; const p = $("#pasar"); if (p) p.value = "auto"; }
   function tampil(view, { riwayat = "replace" } = {}) {
     if (MANDIRI) view = "cek";
     state.view = view;
@@ -53,8 +55,8 @@
     if (gab) $("#tabGab").hidden = false;  // dibuka langsung lewat #gabungan
     if (porto) muatPortofolio();
     // Tab Gabungan: teknikal + fundamental. Cek aset & Pemindai IHSG tetap murni teknikal.
-    if (gab) window.ATGabungan.tampil($("#viewGab"), (kode) => { state.q = kode; $("#q").value = kode; setTf("1d"); tampil("cek", { riwayat: "push" }); analisa(); });
-    if (ihsg) window.ATIhsg.tampil($("#viewIhsg"), (kode) => { state.q = kode; $("#q").value = kode; setTf("1d"); tampil("cek", { riwayat: "push" }); analisa(); });
+    if (gab) window.ATGabungan.tampil($("#viewGab"), (kode) => { state.q = kode; $("#q").value = kode; pasarOtomatis(); setTf("1d"); tampil("cek", { riwayat: "push" }); analisa(); });
+    if (ihsg) window.ATIhsg.tampil($("#viewIhsg"), (kode) => { state.q = kode; $("#q").value = kode; pasarOtomatis(); setTf("1d"); tampil("cek", { riwayat: "push" }); analisa(); });
     catat(view, riwayat);
   }
   document.querySelectorAll(".nav .tab").forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); tampil(a.dataset.view, { riwayat: "push" }); }));
@@ -901,6 +903,7 @@
     tungguUlang = setTimeout(() => { tungguUlang = null; cekStatus(); }, 2000);
   }
   function pulihkan() {
+    if (!MANDIRI) cekModePorto();  // label tab Portofolio / Daftar pantau bila /api/status pertama gagal
     if (state.view === "porto") muatPortofolio(true);
     else if (state.view === "ihsg") tampil("ihsg", { riwayat: null });
     else if (state.view === "gab") tampil("gab", { riwayat: null });

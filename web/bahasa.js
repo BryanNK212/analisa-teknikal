@@ -8,7 +8,7 @@
 (function (root) {
   "use strict";
   const EN = {
-    // ---------- Analisa Fundamental (kotak di Cek aset, kolom & kelompok di Pemindai IHSG) ----------
+    // ---------- tab Gabungan (teknikal + Analisa Fundamental; Cek aset & Pemindai IHSG tetap murni teknikal) ----------
     "Sangat kuat": "Very strong", "Kuat": "Strong", "Cukup": "Fair", "Buruk": "Poor",
     "Berkualitas & murah": "Quality & cheap", "Berkualitas, harga wajar": "Quality, fair price", "Berkualitas tapi mahal": "Quality but expensive",
     "Murah tapi lemah": "Cheap but weak", "Fundamental lemah": "Weak fundamentals", "Berkualitas": "Quality",
@@ -41,7 +41,9 @@
     "Klik satu baris untuk melihat teknikal dan fundamental saham itu berdampingan. Teknikal dari hasil Pemindai IHSG (1D), fundamental dari hasil pindai Analisa Fundamental; tab ini tidak menarik data baru. Kandidat beli = fundamental ≥ {f} dan skor beli ≥ {b}; Pantau = fundamental kuat, teknikal belum; Trading saja = teknikal bagus, fundamental lemah; Lewati dulu = keduanya belum.":
       "Click a row to see that stock's technicals and fundamentals side by side. Technicals come from the IDX screener results (1D), fundamentals from the Fundamental Analysis scan; this tab does not fetch new data. Buy candidates = fundamentals ≥ {f} and buy score ≥ {b}; Watch = strong fundamentals, technicals not yet; Trading only = good technicals, weak fundamentals; Skip for now = neither yet.",
     "Analisa otomatis, bukan rekomendasi investasi.": "Automated analysis, not investment advice.",
-    "Kelompok fundamental + teknikal": "Fundamental + technical groups", "Semua kelompok": "All groups", "Fund": "Fund",
+    "Kelompok fundamental + teknikal": "Fundamental + technical groups",
+    "Harga fundamental masih per {f}, sedangkan Pemindai IHSG per {t}: MoS dan kelompok memakai harga lama. Buka Analisa Fundamental sekali; ia menilai ulang otomatis dengan harga terbaru tanpa internet (±3 detik).":
+      "Fundamental prices are still as of {f}, while the IDX screener is as of {t}: MoS and groups use old prices. Open Fundamental Analysis once; it re-scores automatically with the latest prices, offline (±3 seconds).", "Semua kelompok": "All groups", "Fund": "Fund",
     "Skor fundamental 0–100 dari Analisa Fundamental (sorot angka untuk rinciannya)": "Fundamental score 0–100 from Fundamental Analysis (hover the number for details)",
         // ---------- kepala & navigasi ----------
     "Cek aset": "Check asset", "Portofolio": "Portfolio", "Halaman": "Pages", "Ikuti chart": "Follow chart", "Ikuti lagi": "Follow again",

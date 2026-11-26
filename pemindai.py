@@ -203,10 +203,12 @@ def simpan(kode: str, b: dict) -> None:
 
 def _beda_tumpang(lama: dict | None, baru: dict | None) -> bool:
     """True bila close di tanggal yang sama berbeda > 2% antara cache dan unduhan baru (mis. stock split / reverse
-    split / harga yang disesuaikan ulang): sambungan 1 bulan ke cache lama akan membuat gap palsu, jadi unduh ulang penuh."""
+    split / harga yang disesuaikan ulang): sambungan 1 bulan ke cache lama akan membuat gap palsu, jadi unduh ulang penuh.
+    Bar terakhir di KEDUA sisi tidak dibandingkan: bar terakhir cache bisa berasal dari pindai sebelum bursa tutup
+    (mis. 25 Nov 14:12; ASII 5.425 siang vs 5.550 penutupan = +2,3%), dan itu bukan split (audit 26 Nov 2026)."""
     if not lama or not baru:
         return False
-    kl = {int((t + 7 * 3600) // 86400): c for t, c in zip(lama["t"], lama["c"])}
+    kl = {int((t + 7 * 3600) // 86400): c for t, c in zip(lama["t"][:-1], lama["c"][:-1])}
     for t, c in zip(baru["t"][:-1], baru["c"][:-1]):  # bar terakhir bisa masih berjalan
         k = int((t + 7 * 3600) // 86400)
         if k in kl and kl[k] > 0 and abs(c / kl[k] - 1) > 0.02:
@@ -524,6 +526,7 @@ def main(argv=None) -> int:
                         kabar(selesai_n=i)
         except Exception:  # noqa: BLE001 - mis. lingkungan tanpa multiprocessing: satu per satu
             hasil = [_analisa_satu(t) for t in tugas]
+        kabar(selesai_n=len(hasil))  # kemajuan ditulis tiap 25; tulis sekali lagi supaya status akhir 278/278
         # Arsip & "Baru" per tanggal BURSA (bukan tanggal hari ini): pindai di akhir pekan / libur / pagi sebelum
         # bursa buka memakai data hari bursa terakhir, jadi tetap dibandingkan dengan hari bursa sebelumnya.
         hari_ini = tgl_bursa

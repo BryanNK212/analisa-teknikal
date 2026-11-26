@@ -71,13 +71,19 @@ def bahasa_aktif() -> str:
     return _BAHASA["nilai"]
 
 
+# Satu kunci untuk semua penulisan pengaturan.json (bahasa, daftar pantau, ambang Gabungan): baca-ubah-tulis
+# yang bersamaan tidak boleh saling menimpa.
+_KUNCI_PENGATURAN = threading.Lock()
+
+
 def atur_bahasa(nilai: str) -> str:
     nilai = "en" if nilai == "en" else "id"
     path = FOLDER / "pengaturan.json"
-    tk.muat_pengaturan()  # memastikan berkasnya ada
-    data = json.loads(path.read_text(encoding="utf-8"))
-    data["bahasa"] = nilai
-    tk.tulis_atomik(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    with _KUNCI_PENGATURAN:
+        tk.muat_pengaturan()  # memastikan berkasnya ada
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["bahasa"] = nilai
+        tk.tulis_atomik(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
     _BAHASA["nilai"] = nilai
     return nilai
 
@@ -87,7 +93,6 @@ def atur_pantau(daftar: list) -> dict:
     dan disimpan dalam format Yahoo (BBCA.JK, NVDA, BTC-USD), sama dengan yang dibaca pemindai."""
     tk.muat_pengaturan()
     path = FOLDER / "pengaturan.json"
-    data = json.loads(path.read_text(encoding="utf-8"))
     hasil, gagal = [], []
     for q in [str(x).strip().upper() for x in daftar if str(x).strip()][:60]:
         if not re.fullmatch(r"[A-Z0-9.^=:_/-]{1,24}", q):
@@ -102,8 +107,11 @@ def atur_pantau(daftar: list) -> dict:
             code = re.sub(r"(USDT|-USD)$", "", code) + "-USD"
         if code not in hasil:
             hasil.append(code)
-    data["tambahan_pantau"] = hasil
-    tk.tulis_atomik(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    # dibaca ulang tepat sebelum ditulis (pengecekan ticker di atas lewat internet bisa lama)
+    with _KUNCI_PENGATURAN:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["tambahan_pantau"] = hasil
+        tk.tulis_atomik(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
     return {"ok": True, "pantau": hasil, "gagal": gagal}
 
 
@@ -783,15 +791,16 @@ def ambang_gabungan() -> dict:
 
 def atur_ambang(isi: dict) -> dict:
     path = FOLDER / "pengaturan.json"
-    tk.muat_pengaturan()
-    data = json.loads(path.read_text(encoding="utf-8"))
-    for k, kunci in (("fund_min", "gabungan_fund_min"), ("beli_min", "gabungan_beli_min")):
-        if k in isi:
-            try:
-                data[kunci] = int(min(max(float(isi[k]), 0), 100))
-            except (TypeError, ValueError):
-                raise ValueError(f"{k} harus angka 0-100") from None
-    tk.tulis_atomik(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    with _KUNCI_PENGATURAN:
+        tk.muat_pengaturan()
+        data = json.loads(path.read_text(encoding="utf-8"))
+        for k, kunci in (("fund_min", "gabungan_fund_min"), ("beli_min", "gabungan_beli_min")):
+            if k in isi:
+                try:
+                    data[kunci] = int(min(max(float(isi[k]), 0), 100))
+                except (TypeError, ValueError):
+                    raise ValueError(f"{k} harus angka 0-100") from None
+        tk.tulis_atomik(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
     return ambang_gabungan()
 
 
@@ -1040,7 +1049,7 @@ class Penangan(BaseHTTPRequestHandler):
             return self._kirim(403, b"forbidden", "text/plain")
         if u.path == "/api/pantau":
             try:
-                n = min(int(self.headers.get("Content-Length") or 0), 20000)
+                n = max(0, min(int(self.headers.get("Content-Length") or 0), 20000))
                 daftar = json.loads(self.rfile.read(n).decode("utf-8") or "{}").get("daftar") or []
                 if not isinstance(daftar, list):
                     raise ValueError
@@ -1049,7 +1058,7 @@ class Penangan(BaseHTTPRequestHandler):
             return self._json(atur_pantau(daftar))
         if u.path == "/api/gabungan/ambang":
             try:
-                n = min(int(self.headers.get("Content-Length") or 0), 2000)
+                n = max(0, min(int(self.headers.get("Content-Length") or 0), 2000))
                 isi = json.loads(self.rfile.read(n).decode("utf-8") or "{}")
                 return self._json({"ok": True, "ambang": atur_ambang(isi if isinstance(isi, dict) else {})})
             except (ValueError, json.JSONDecodeError) as exc:

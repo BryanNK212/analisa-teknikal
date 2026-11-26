@@ -52,6 +52,10 @@
       <div class="fund-aksi">${buka}</div></div>`;
   }
 
+  // Nama sektor dari Yahoo (lewat Analisa Fundamental) berbahasa Inggris; di mode Indonesia diterjemahkan
+  // dengan kamus yang sama seperti panel Analisa Fundamental. Nilai saringan tetap nama aslinya.
+  const SEKTOR_ID = { "Financial Services": "Keuangan", "Energy": "Energi", "Basic Materials": "Bahan baku", "Consumer Defensive": "Konsumer primer", "Consumer Cyclical": "Konsumer non-primer", "Industrials": "Perindustrian", "Real Estate": "Properti", "Communication Services": "Telekomunikasi & media", "Technology": "Teknologi", "Healthcare": "Kesehatan", "Utilities": "Utilitas" };
+  const sektorNm = (s) => (B.en ? s : SEKTOR_ID[s] || s);
   const GRUP_URUT = { kandidat: 0, pantau: 1, trading: 2, lewati: 3, tanpa_tek: 4, tanpa_fund: 5 };
   const sbeli = (r) => (r.tek && r.tek.skor_beli ? r.tek.skor_beli.skor : null);
   function nilaiUrut(r, k) {
@@ -132,13 +136,14 @@
     }
     const A = d.ambang, n = { semua: d.baris.length, kandidat: 0, pantau: 0, trading: 0, lewati: 0, tanpa_tek: 0, tanpa_fund: 0 };
     d.baris.forEach((r) => n[r.grup]++);
-    const sektor = [...new Set(d.baris.map((r) => r.sektor).filter(Boolean))].sort();
+    const sektor = [...new Set(d.baris.map((r) => r.sektor).filter(Boolean))].sort((a, b) => sektorNm(a).localeCompare(sektorNm(b)));
     const tk = d.tek || {}, fu = d.fund || {};
     const meta = [tk.ada ? t("Teknikal: Pemindai IHSG {w} · {n} saham", { w: esc(waktu(tk.waktu)), n: tk.lolos }) : t("Pemindai IHSG belum pernah dijalankan."),
       t("Fundamental: dinilai {w}, harga per {tgl} · {n} emiten", { w: esc(waktu(fu.waktu)), tgl: esc(tglIso(fu.harga_tanggal || fu.waktu)), n: fu.n })].join(" · ");
     el.innerHTML = `<div class="porto-head"><div><h1>${t("Gabungan")}</h1><div class="meta">${meta}</div></div>
         <div class="act"><a class="btn" href="${esc(d.url_fund)}" target="_blank" rel="noopener">${t("Buka Analisa Fundamental")} ↗</a></div></div>
       ${tk.basi ? `<p class="flat ihsg-peringatan">${icon("warn")} ${t("Hasil Pemindai IHSG belum diperbarui sejak hari bursa terakhir; skor beli bisa sudah berubah. Jalankan Pindai IHSG.")}</p>` : ""}
+      ${fu.harga_tanggal && tk.tanggal_bursa && fu.harga_tanggal < tk.tanggal_bursa ? `<p class="flat ihsg-peringatan">${icon("warn")} ${t("Harga fundamental masih per {f}, sedangkan Pemindai IHSG per {t}: MoS dan kelompok memakai harga lama. Buka Analisa Fundamental sekali; ia menilai ulang otomatis dengan harga terbaru tanpa internet (±3 detik).", { f: esc(tglIso(fu.harga_tanggal)), t: esc(tglIso(tk.tanggal_bursa)) })}</p>` : ""}
       <div class="filters gab-ambang">
         <span class="muted">${t("Kelompok")}:</span>
         <label>${t("Fundamental ≥")} <input type="number" id="gabFund" min="0" max="100" step="5" value="${num(A.fund_min, 0)}"></label>
@@ -148,7 +153,7 @@
       <div class="filters ihsg-saring gab-saring">
         <div class="chips" role="group" aria-label="${t("Kelompok fundamental + teknikal")}">${["semua", "kandidat", "pantau", "trading", "lewati", "tanpa_tek", "tanpa_fund"].filter((g) => g === "semua" || n[g])
           .map((g) => `<button type="button" class="chip sans g-${g}" data-grup="${g}" aria-pressed="${G.saring.grup === g}" ${g !== "semua" ? `title="${esc(t(F_GRUP_KET[g]))}"` : ""}>${g === "semua" ? t("Semua kelompok") : esc(t(F_GRUP[g]))} (${n[g]})</button>`).join("")}</div>
-        <select id="gabSektor" class="field" aria-label="${t("Sektor")}"><option value="">${t("Semua sektor")}</option>${sektor.map((s) => `<option value="${esc(s)}"${s === G.saring.sektor ? " selected" : ""}>${esc(s)}</option>`).join("")}</select>
+        <select id="gabSektor" class="field" aria-label="${t("Sektor")}"><option value="">${t("Semua sektor")}</option>${sektor.map((s) => `<option value="${esc(s)}"${s === G.saring.sektor ? " selected" : ""}>${esc(sektorNm(s))}</option>`).join("")}</select>
         <input type="search" id="gabCari" placeholder="${t("Cari kode atau nama")}" value="${esc(G.saring.cari)}" aria-label="${t("Cari kode atau nama")}">
         <span class="muted" id="gabJumlah"></span>
       </div>
@@ -167,7 +172,12 @@
     el.querySelectorAll("#tblGab .sort").forEach((b) => b.addEventListener("click", () => {
       const k = b.dataset.k; G.urut = [k, G.urut[0] === k ? -G.urut[1] : k === "kode" || k === "grup" ? 1 : -1]; gambarTabel();
     }));
-    el.querySelectorAll(".gab-saring .chip").forEach((b) => b.addEventListener("click", () => { G.saring.grup = b.dataset.grup; render(); }));
+    // Chip kelompok: cukup tandai pilihan dan gambar ulang tabel (render penuh menghapus posisi gulir).
+    el.querySelectorAll(".gab-saring .chip").forEach((b) => b.addEventListener("click", () => {
+      G.saring.grup = b.dataset.grup;
+      el.querySelectorAll(".gab-saring .chip").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      gambarTabel();
+    }));
     el.querySelector("#gabSektor").addEventListener("change", (e) => { G.saring.sektor = e.target.value; gambarTabel(); });
     el.querySelector("#gabCari").addEventListener("input", (e) => { G.saring.cari = e.target.value; gambarTabel(); });
     el.querySelector("#gabLagi").addEventListener("click", () => { G.semua = true; gambarTabel(); });
@@ -176,7 +186,7 @@
     const buka = (tr) => { G.buka = G.buka === tr.dataset.k ? null : tr.dataset.k; gambarTabel(); };
     tb.addEventListener("click", (e) => {
       const c = e.target.closest("[data-chart]");
-      if (c) { e.preventDefault(); if (G.onOpen) G.onOpen(c.dataset.chart); return; }
+      if (c) { e.preventDefault(); if (G.onOpen) G.onOpen(c.dataset.chart + ".JK"); return; }  // .JK: tetap saham IDX walau pilihan pasar di Cek aset sedang AS (FAST = KFC Indonesia, bukan Fastenal)
       if (e.target.closest("a, button, details, summary")) return;
       const tr = e.target.closest("tr.row"); if (tr) buka(tr);
     });
