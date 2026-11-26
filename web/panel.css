@@ -723,3 +723,54 @@ body.embed .arti { right: var(--s3); width: calc(100% - 16px); }
 .gab-kol h3 { margin: 0 0 var(--s2); font-size: var(--fs-md, 14px); }
 .gab-ket { margin-top: var(--s3); }
 @media (max-width: 900px) { .gab-dua { grid-template-columns: 1fr; } }
+
+/* ---------- Penyempurnaan tampilan (26 Nov 2026, audit UI/UX Pro Max) ----------
+   Skala huruf 11·12·13·14·16·20, jarak 4·8·12·16·24, satu tinggi kontrol per baris saringan. */
+
+/* Tabel: judul kolom tanpa tombol urut memakai jarak yang sama dengan selnya (sebelumnya menempel di tepi). */
+.tbl th:not(:has(> .sort)):not(:has(> span)) { padding: var(--s3) 10px; }
+.tbl tbody tr.row:hover td { background: rgba(255, 255, 255, .025); }
+
+/* Baris saringan Pemindai IHSG & Gabungan: kelompok chip dipisah garis tipis, kontrol setinggi 28px,
+   kotak cari di kanan bersama jumlah hasil. */
+.ihsg-saring { gap: var(--s3) var(--s4); }
+.ihsg-saring .chips { align-items: center; gap: 6px; }
+.ihsg-saring .chip { height: 28px; padding: 0 10px; border-radius: 14px; }
+.chips .sep { width: 1px; height: 18px; background: var(--line-2); margin: 0 6px; flex: none; }
+.ihsg-saring input[type=search] { height: 28px; font-size: var(--fs-md); margin-left: auto; min-width: 200px; }
+.ihsg-saring select.field { height: 28px; font-size: var(--fs-md); }
+#ihsgJumlah, #gabJumlah { font-size: var(--fs-sm); color: var(--text-3); white-space: nowrap; min-width: 70px; text-align: right; }
+
+/* Kolom Saham: kode di atas, label kecil (Baru lolos, Volatil) di bawahnya. */
+.tbl td .sym { white-space: nowrap; }
+.tags-ihsg { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.tags-ihsg .tag-ihsg { margin-left: 0; }
+/* "+n" tanda lain: sejajar dengan teks tanda, kecil */
+.tbl .lagi { display: inline-block; margin: 2px 0 0 24px; padding: 0 6px; border: 1px solid var(--line); border-radius: 8px; font: 500 var(--fs-xs)/16px var(--mono); color: var(--text-3); cursor: help; }
+/* Kolom Langkah di pemindai & Gabungan: rata dengan judul kolomnya (indentasi 24px hanya untuk tabel Portofolio). */
+#tblIhsg .langkah1, #tblGab .langkah1 { padding-left: 0; margin-top: 0; max-width: 46ch; }
+#tblIhsg td:last-child, #tblGab td:nth-last-child(2) { min-width: 240px; }
+
+/* Gabungan */
+.tab-gabungan .pill { min-width: 104px; justify-content: center; }
+.gab-ambang { padding: var(--s3) var(--s4); border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--raise); margin-bottom: var(--s4); }
+.gab-detail .langkah1 { padding-left: 0; white-space: normal; }
+
+/* Panel samping: Kesimpulan semua timeframe. Langkah di bawah labelnya, bukan kolom sempit di kanan
+   yang membuat teks terpotong menjadi dua-tiga baris. */
+.semua .mtf, .semua .mtf tbody { display: block; }
+.semua .mtf tr { display: grid; grid-template-columns: 34px 48px minmax(0, 1fr); column-gap: var(--s2); padding: 7px 0; border-top: 1px solid var(--line); }
+.semua .mtf td { border-top: 0; padding: 0; }
+.semua .mtf td.ra { grid-column: 3; text-align: left; margin-top: 2px; color: var(--text-3); }
+.semua .mtf tr.aktif { background: rgba(255, 255, 255, .04); box-shadow: inset 2px 0 0 var(--text-3); }
+.semua .mtf tr.aktif td, .semua .mtf tr.aktif td:first-child { background: none; box-shadow: none; padding-left: 0; }
+.semua .mtf tr.aktif td.tf { padding-left: 8px; }
+.semua .kes { font-size: var(--fs-base); font-weight: 500; color: var(--text); line-height: 1.55; }
+.semua ul.saran { font-size: var(--fs-md); color: var(--text-2); }
+.semua .note { margin-top: var(--s4); }
+
+/* Blok vonis: jarak antar baris ringkasan (skor semua timeframe, skor beli, catatan) seragam. */
+.verdict + .gab, #vGab { margin-top: var(--s4); }
+#vBeli { margin-top: var(--s4); padding-top: var(--s4); border-top: 1px solid var(--line); }
+.konf { line-height: 1.5; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0ms !important; animation-duration: 0ms !important; } }

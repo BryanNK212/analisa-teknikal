@@ -31,7 +31,7 @@
     const sisa = fl.length - tampil.length;
     const tag = (a.tag || []).filter((x) => TAG[x]).map((x) => `<span class="tag-ihsg ${x}" title="${esc(t(TAG[x][1]))}">${esc(t(TAG[x][0]))}</span>`).join("");
     return `<tr class="row" data-k="${esc(a.kode)}" tabindex="0">
-      <td><span class="sym">${esc(a.kode)}</span>${tag}</td>
+      <td><span class="sym">${esc(a.kode)}</span>${tag ? `<div class="tags-ihsg">${tag}</div>` : ""}</td>
       <td class="r num">${esc(fp(a.harga, "idx"))}<span class="delta ${a.chg >= 0 ? "up" : "down"}">${pct(a.chg)}</span></td>
       <td class="r num">${rupiah(a.nilai)}<span class="delta faint" title="${t("Rata-rata nilai transaksi 20 hari")}">${t("rata²")} ${rupiah(a.nilai20)}</span></td>
       ${P.data.sumber_idx && P.data.sumber_idx.ringkasan ? `<td class="r num">${a.frek != null ? num(a.frek, 0) + "×" : "—"}${a.spread != null ? `<span class="delta faint" title="${t("Selisih bid–offer penutupan")}">spread ${num(a.spread, 1)}%</span>` : ""}</td>` : ""}
@@ -110,9 +110,11 @@
       <div class="filters ihsg-saring">
         <div class="chips" role="group" aria-label="${t("Saringan")}">
           <button type="button" class="chip sans" data-s="baru" aria-pressed="${!!P.saring.baru}">${t("Hanya tanda baru")}${d.baru_total ? ` (${d.baru_total})` : ""}</button>
+          <span class="sep" aria-hidden="true"></span>
           <button type="button" class="chip sans" data-arah="semua" aria-pressed="${P.saring.arah === "semua"}">${t("Semua arah")}</button>
           <button type="button" class="chip sans" data-arah="naik" aria-pressed="${P.saring.arah === "naik"}">${t("Bullish")}</button>
           <button type="button" class="chip sans" data-arah="turun" aria-pressed="${P.saring.arah === "turun"}">${t("Bearish")}</button>
+          <span class="sep" aria-hidden="true"></span>
           ${[0, 40, 70, 80].map((x) => `<button type="button" class="chip sans" data-beli="${x}" aria-pressed="${P.saring.beli === x}">${x ? t("Skor beli ≥ {x}", { x }) : t("Semua skor beli")}</button>`).join("")}
         </div>
         <input type="search" id="ihsgCari" placeholder="${t("Cari kode, mis. BBRI")}" value="${esc(P.saring.cari)}" aria-label="${t("Cari kode saham")}">

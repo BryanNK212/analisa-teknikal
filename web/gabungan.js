@@ -148,7 +148,7 @@
       <div class="filters ihsg-saring gab-saring">
         <div class="chips" role="group" aria-label="${t("Kelompok fundamental + teknikal")}">${["semua", "kandidat", "pantau", "trading", "lewati", "tanpa_tek", "tanpa_fund"].filter((g) => g === "semua" || n[g])
           .map((g) => `<button type="button" class="chip sans g-${g}" data-grup="${g}" aria-pressed="${G.saring.grup === g}" ${g !== "semua" ? `title="${esc(t(F_GRUP_KET[g]))}"` : ""}>${g === "semua" ? t("Semua kelompok") : esc(t(F_GRUP[g]))} (${n[g]})</button>`).join("")}</div>
-        <select id="gabSektor" aria-label="${t("Sektor")}"><option value="">${t("Semua sektor")}</option>${sektor.map((s) => `<option value="${esc(s)}"${s === G.saring.sektor ? " selected" : ""}>${esc(s)}</option>`).join("")}</select>
+        <select id="gabSektor" class="field" aria-label="${t("Sektor")}"><option value="">${t("Semua sektor")}</option>${sektor.map((s) => `<option value="${esc(s)}"${s === G.saring.sektor ? " selected" : ""}>${esc(s)}</option>`).join("")}</select>
         <input type="search" id="gabCari" placeholder="${t("Cari kode atau nama")}" value="${esc(G.saring.cari)}" aria-label="${t("Cari kode atau nama")}">
         <span class="muted" id="gabJumlah"></span>
       </div>
