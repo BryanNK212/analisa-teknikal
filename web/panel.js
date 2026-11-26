@@ -35,7 +35,7 @@
 
   // ---------- alamat (#q=..&tf=.. / #portofolio) & tombol Back ----------
   const labelTf = (tf) => ({ "5m": "5m", "15m": "15m", "30m": "30m", "1h": "1h", "4h": "4h", "1d": "1D", "1wk": "1W", "1mo": "1M" }[tf] || tf);
-  function urlUntuk(view) { return view === "porto" ? "#portofolio" : view === "ihsg" ? "#ihsg" : state.q ? `#q=${encodeURIComponent(state.q)}&tf=${state.tf}` : location.pathname + location.search; }
+  function urlUntuk(view) { return view === "porto" ? "#portofolio" : view === "ihsg" ? "#ihsg" : view === "gab" ? "#gabungan" : state.q ? `#q=${encodeURIComponent(state.q)}&tf=${state.tf}` : location.pathname + location.search; }
   function catat(view, cara) {
     if (EMBED || !cara) return;
     const u = urlUntuk(view);
@@ -47,10 +47,13 @@
   function tampil(view, { riwayat = "replace" } = {}) {
     if (MANDIRI) view = "cek";
     state.view = view;
-    const cek = view === "cek", porto = view === "porto", ihsg = view === "ihsg";
-    [["#tabCek", cek], ["#tabPorto", porto], ["#tabIhsg", ihsg]].forEach(([s, on]) => (on ? $(s).setAttribute("aria-current", "page") : $(s).removeAttribute("aria-current")));
-    $("#viewCek").hidden = !cek; $("#work").hidden = !cek; $("#viewPorto").hidden = !porto; $("#viewIhsg").hidden = !ihsg;
+    const cek = view === "cek", porto = view === "porto", ihsg = view === "ihsg", gab = view === "gab";
+    [["#tabCek", cek], ["#tabPorto", porto], ["#tabIhsg", ihsg], ["#tabGab", gab]].forEach(([s, on]) => (on ? $(s).setAttribute("aria-current", "page") : $(s).removeAttribute("aria-current")));
+    $("#viewCek").hidden = !cek; $("#work").hidden = !cek; $("#viewPorto").hidden = !porto; $("#viewIhsg").hidden = !ihsg; $("#viewGab").hidden = !gab;
+    if (gab) $("#tabGab").hidden = false;  // dibuka langsung lewat #gabungan
     if (porto) muatPortofolio();
+    // Tab Gabungan: teknikal + fundamental. Cek aset & Pemindai IHSG tetap murni teknikal.
+    if (gab) window.ATGabungan.tampil($("#viewGab"), (kode) => { state.q = kode; $("#q").value = kode; setTf("1d"); tampil("cek", { riwayat: "push" }); analisa(); });
     if (ihsg) window.ATIhsg.tampil($("#viewIhsg"), (kode) => { state.q = kode; $("#q").value = kode; setTf("1d"); tampil("cek", { riwayat: "push" }); analisa(); });
     catat(view, riwayat);
   }
@@ -58,6 +61,7 @@
   function bacaUrl() {
     if (location.hash === "#portofolio") return tampil("porto", { riwayat: null });
     if (location.hash === "#ihsg") return tampil("ihsg", { riwayat: null });
+    if (location.hash === "#gabungan") return tampil("gab", { riwayat: null });
     tampil("cek", { riwayat: null });
     const h = new URLSearchParams(location.hash.slice(1));
     const q = h.get("q") || params.get("q");
@@ -229,9 +233,6 @@
     $("#vTrend").innerHTML = ist(`${r.trend.label} · ${r.trend.structure}`);  // istilah: arti awam saat disorot
     // Skor beli 0–100 (dari data harian, sama dengan kolom Beli di tab Portofolio dan kartu ekstensi)
     $("#vBeli").innerHTML = beliHtml(d.skor_beli); $("#vBeli").hidden = !d.skor_beli;
-    // Analisa Fundamental (program terpisah, hanya saham IDX, hanya bila foldernya ada). Belum tampil di panel samping ekstensi.
-    const fu = !EMBED && d.fundamental && window.ATFund ? window.ATFund.kotak(d.fundamental) : "";
-    $("#vFund").innerHTML = fu; $("#vFund").hidden = !fu;
     const konf = r.mtf && r.mtf.confluence;
     $("#vKonf").hidden = !konf; $("#vKonf").innerHTML = ist(konf || "");
     const jalan = d.berjalan;
@@ -902,6 +903,7 @@
   function pulihkan() {
     if (state.view === "porto") muatPortofolio(true);
     else if (state.view === "ihsg") tampil("ihsg", { riwayat: null });
+    else if (state.view === "gab") tampil("gab", { riwayat: null });
     else if (state.q && !state.data) analisa();
   }
   window.ATCobaLagi = cobaLagi;
@@ -916,6 +918,7 @@
       if ((s.bahasa === "en" || s.bahasa === "id") && s.bahasa !== ATB.lang && !new URLSearchParams(location.search).get("bahasa")) return pakaiBahasa(s.bahasa);
       if (!state.data) setStatus(s.offline ? "warn" : "live", t(s.offline ? "Mode offline (cache)" : "Terhubung"));
       hitungIhsg(s.ihsg);
+      if (!EMBED && !MANDIRI) $("#tabGab").hidden = !s.gabungan && state.view !== "gab";  // hanya bila hasil Analisa Fundamental ada
     }).catch(() => { if (!state.data) setStatus("err", t("Panel lokal mati")); cobaLagi(); });
   }
   // Jumlah tanda baru Pemindai IHSG yang belum dilihat: angka di tab (panel utama) atau baris pengingat (panel samping).
@@ -935,7 +938,7 @@
   if (!MANDIRI) cekModePorto();  // label tab: Portofolio atau Daftar pantau
   document.addEventListener("visibilitychange", () => { if (!document.hidden) cekStatus(); });
   const h0 = new URLSearchParams(location.hash.slice(1));
-  if (location.hash === "#portofolio" || location.hash === "#ihsg" || h0.get("q") || params.get("q")) bacaUrl();
+  if (location.hash === "#portofolio" || location.hash === "#ihsg" || location.hash === "#gabungan" || h0.get("q") || params.get("q")) bacaUrl();
   if (!state.q) { showState("start"); isiStart(); }
   window.ATSiap = true;  // dibaca pengaman di panel.html (muat ulang otomatis bila ada skrip yang gagal dimuat)
 })();

@@ -1,6 +1,6 @@
 {
-  "id": "987c525a6b54",
-  "tanggal": "25-11-2026 21:43",
+  "id": "5347e7608112",
+  "tanggal": "26-11-2026 21:18",
   "program": "1.5",
   "mesin": "1.4.1",
   "ekstensi": "1.15",
@@ -44,6 +44,7 @@
     "web/fira-sans-400.woff2",
     "web/fira-sans-500.woff2",
     "web/fira-sans-600.woff2",
+    "web/gabungan.js",
     "web/ikon.svg",
     "web/lapisan.js",
     "web/lw.js",

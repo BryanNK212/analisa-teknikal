@@ -695,17 +695,31 @@ body.embed .arti { right: var(--s3); width: calc(100% - 16px); }
 .ihsg-banner { display: block; padding: 6px 12px; background: rgba(224, 166, 75, .14); color: var(--neutral); font-size: var(--fs-sm); text-decoration: none; border-bottom: 1px solid var(--line); }
 .ihsg-banner:hover { background: rgba(224, 166, 75, .22); }
 
-/* ---------- Analisa Fundamental (kotak di Cek aset, kolom & kelompok di Pemindai IHSG) ---------- */
-#vFund { margin-top: var(--s3); padding-top: var(--s3); border-top: 1px solid var(--line); }
-.fund .beli-kepala .pill { margin-left: auto; }
+/* ---------- tab Gabungan (teknikal + fundamental) ---------- */
 .fund-baris { margin-top: var(--s2); font-size: var(--fs-sm); color: var(--text-2); }
 .fund-pilar { display: flex; flex-wrap: wrap; gap: 4px var(--s3); margin-top: var(--s2); font-size: var(--fs-sm); color: var(--text-3); }
 .fund-pilar b { font-family: var(--mono); font-weight: 600; }
 .fund-tanda { margin-top: var(--s2); display: grid; gap: 2px; font-size: var(--fs-sm); }
 .fund-tanda .sig { display: flex; gap: 6px; align-items: flex-start; }
-.fund-aksi { margin-top: var(--s2); }
+.fund-aksi { margin-top: var(--s3); }
+.fund .beli-kepala .pill { margin-left: auto; }
 .pill.g-kandidat, .chip.g-kandidat[aria-pressed="true"] { color: var(--bull-ink); background: var(--bull-bg); }
 .pill.g-pantau { color: var(--text); background: var(--accent-bg); }
 .pill.g-trading { color: var(--text-2); background: rgba(255, 255, 255, .05); border: 1px dashed var(--line-2); }
 .pill.g-lewati, .pill.g-tanpa_tek, .pill.g-tanpa_fund { color: var(--text-3); background: transparent; border: 1px solid var(--line); }
-.fund-chips { margin-top: 6px; }
+.gab-ambang { gap: var(--s3); align-items: center; font-size: var(--fs-sm); }
+.gab-ambang label { margin-left: 0; font-size: var(--fs-sm); }
+.tab-gabungan #gabLagi { margin-top: var(--s3); }
+.gab-ambang input { width: 64px; height: 28px; background: var(--raise-2, rgba(255,255,255,.04)); border: 1px solid var(--line-2); border-radius: 6px; padding: 0 8px; color: var(--text); font-family: var(--mono); }
+.gab-saring select { height: 30px; background: transparent; color: var(--text-2); border: 1px solid var(--line-2); border-radius: 6px; padding: 0 8px; }
+.gab-nama { display: block; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); color: var(--text-3); }
+.gab-kelas { font-size: var(--fs-sm); color: var(--text-2); }
+.gab-tanda { display: inline-flex; gap: 8px; align-items: center; }
+.gab-tanda > span { display: inline-flex; gap: 2px; align-items: center; }
+#tblGab tr.row { cursor: pointer; }
+#tblGab tr.terbuka td { background: var(--accent-bg); }
+.gab-detail > td { padding: var(--s4) var(--s4) var(--s5); background: rgba(255, 255, 255, .02); }
+.gab-dua { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s5); }
+.gab-kol h3 { margin: 0 0 var(--s2); font-size: var(--fs-md, 14px); }
+.gab-ket { margin-top: var(--s3); }
+@media (max-width: 900px) { .gab-dua { grid-template-columns: 1fr; } }

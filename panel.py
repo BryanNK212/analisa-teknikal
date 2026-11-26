@@ -610,9 +610,6 @@ def analisa(q: str, tf: str, pasar: str | None, ringkas: bool = False, bahasa: s
              "aksi": aksi, "bendera": fl_t, "berjalan": berjalan,
              "rs": bh.rs_en(rs) if en else rs, "dekat": dekat, "narasi": narasi, "rencana_aksi": rencana,
              "lapisan": lap, "skor_beli": beli}
-    if mkt == "idx" and not ringkas:
-        # Analisa Fundamental (program terpisah, hanya dibaca bila foldernya ada). Bukan data portofolio.
-        hasil["fundamental"] = fund_untuk(code, beli["skor"] if beli else None, bahasa)
     if ringkas:
         # Kartu kecil di halaman chart (ekstensi).
         level = [{"k": k.upper(), "harga": fp(dekat[k]["harga"]), "jarak": persen(dekat[k]["jarak_pct"]),
@@ -715,12 +712,6 @@ def ihsg_data(bahasa: str) -> dict:
             a["langkah"] = a.get("langkah_en") or a.get("langkah")
     for a in d.get("aset") or []:
         a.pop("langkah_en", None)
-    F = baca_fundamental()
-    if F.get("ada"):
-        for a in d.get("aset") or []:
-            sb = a.get("skor_beli") if isinstance(a.get("skor_beli"), dict) else {}
-            a["fund"] = fund_ringkas(F, a.get("kode"), sb.get("skor"), bahasa)
-        out["fund"] = {k: F.get(k) for k in ("waktu", "harga_tanggal", "fund_min", "beli_min", "url")}
     out["data"] = d
     return out
 
@@ -728,12 +719,13 @@ def ihsg_data(bahasa: str) -> dict:
 # ==================================================================
 # ANALISA FUNDAMENTAL (program terpisah; hanya DIBACA bila ada)
 # ==================================================================
-# Hasil pindai Analisa Fundamental (<folder>/output/fundamental.json) dipakai apa adanya untuk saham IDX:
+# Hanya dipakai tab Gabungan. Cek aset dan Pemindai IHSG tetap murni teknikal (chart saja), dan Analisa Fundamental
+# tetap murni fundamental. Hasil pindai Analisa Fundamental (<folder>/output/fundamental.json) dibaca apa adanya:
 # skor 0–100, kelompok kualitas × harga, harga wajar, MoS, tanda. Folder itu tidak pernah ditulis.
 # Lokasi: pengaturan.json → folder_fundamental (bawaan ~/Analisa Fundamental; "" = matikan). Tanpa folder itu
-# (mis. paket untuk orang lain) semua bagian fundamental disembunyikan. Ini bukan data portofolio.
-# Fundamental = apa yang layak dibeli, teknikal (skor beli) = kapan. Keduanya sengaja tidak dirata-rata;
-# ambang 4 kelompok dibaca dari pengaturan Analisa Fundamental supaya kedua panel selalu sepakat.
+# (mis. paket untuk orang lain) tab Gabungan disembunyikan. Ini bukan data portofolio.
+# Fundamental = apa yang layak dibeli, teknikal (skor beli) = kapan. Keduanya sengaja tidak dirata-rata; 4 kelompok
+# dengan ambang gabungan_fund_min (65) dan gabungan_beli_min (70) di pengaturan.json ini (diatur dari tab Gabungan).
 
 _FUND = {"kunci": None, "data": {"ada": False}}
 URL_FUND = "http://127.0.0.1:8769/"
@@ -750,14 +742,14 @@ def baca_fundamental() -> dict:
     folder = _folder_fundamental()
     if folder is None:
         return {"ada": False}
-    p, pc = folder / "output" / "fundamental.json", folder / "pengaturan.json"
+    p = folder / "output" / "fundamental.json"
     try:
-        kunci = (str(p), p.stat().st_mtime, pc.stat().st_mtime if pc.exists() else 0)
+        kunci = (str(p), p.stat().st_mtime)
     except OSError:
         return {"ada": False}
     if _FUND["kunci"] == kunci:
-        return _FUND["data"]
-    d, cfg = _baca(p), _baca(pc, {}) or {}
+        return {**_FUND["data"], **ambang_gabungan()}
+    d = _baca(p)
     data = {"ada": False}
     if isinstance(d, dict) and isinstance(d.get("baris"), list):
         baris = {}
@@ -775,14 +767,87 @@ def baca_fundamental() -> dict:
             baris[k] = {x: b.get(x) for x in ("skor", "label", "kelas", "pilar", "wajar", "mos", "vonis", "harga",
                                               "cakupan", "tanggal_laporan", "skor_lalu", "nama", "sektor")}
             baris[k]["tanda"] = tanda
-        try:
-            fmin, bmin = float(cfg.get("gabungan_fund_min", 65)), float(cfg.get("gabungan_beli_min", 70))
-        except (TypeError, ValueError):
-            fmin, bmin = 65.0, 70.0
         data = {"ada": bool(baris), "waktu": d.get("waktu"), "harga_tanggal": d.get("harga_tanggal"),
-                "fund_min": fmin, "beli_min": bmin, "url": URL_FUND, "baris": baris}
+                "harga_waktu": d.get("harga_waktu"), "url": URL_FUND, "baris": baris}
     _FUND.update(kunci=kunci, data=data)
-    return data
+    return {**data, **ambang_gabungan()}
+
+
+def ambang_gabungan() -> dict:
+    cfg = tk.muat_pengaturan()
+    try:
+        return {"fund_min": float(cfg.get("gabungan_fund_min", 65)), "beli_min": float(cfg.get("gabungan_beli_min", 70))}
+    except (TypeError, ValueError):
+        return {"fund_min": 65.0, "beli_min": 70.0}
+
+
+def atur_ambang(isi: dict) -> dict:
+    path = FOLDER / "pengaturan.json"
+    tk.muat_pengaturan()
+    data = json.loads(path.read_text(encoding="utf-8"))
+    for k, kunci in (("fund_min", "gabungan_fund_min"), ("beli_min", "gabungan_beli_min")):
+        if k in isi:
+            try:
+                data[kunci] = int(min(max(float(isi[k]), 0), 100))
+            except (TypeError, ValueError):
+                raise ValueError(f"{k} harus angka 0-100") from None
+    tk.tulis_atomik(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    return ambang_gabungan()
+
+
+GRUP_URUT = {"kandidat": 0, "pantau": 1, "trading": 2, "lewati": 3, "tanpa_tek": 4, "tanpa_fund": 5}
+
+
+def gabungan_data(bahasa: str) -> dict:
+    """Tab Gabungan: saham IHSG dari hasil Pemindai IHSG teknikal dan hasil Analisa Fundamental, digabung per kode."""
+    F = baca_fundamental()
+    if not F.get("ada"):
+        return {"ok": True, "ada": False}
+    T = ihsg_data(bahasa)  # label teknikal sudah diterjemahkan bila en
+    td = T.get("data") or {}
+    tek = {str(a.get("kode") or "").upper().replace(".JK", ""): a for a in td.get("aset") or []}
+    try:
+        basi = bool(td.get("tanggal_bursa")) and td["tanggal_bursa"] < _hari_bursa_tutup()
+    except (TypeError, KeyError):
+        basi = False
+    baris = []
+    for kode in sorted(set(F["baris"]) | set(tek)):
+        a, b = tek.get(kode), F["baris"].get(kode)
+        sb = (a or {}).get("skor_beli") if isinstance((a or {}).get("skor_beli"), dict) else None
+        r = {"kode": kode, "nama": (b or {}).get("nama"), "sektor": (b or {}).get("sektor")}
+        if a:
+            fl = [f for f in a.get("bendera") or [] if f.get("level") != "info"]
+            r["tek"] = {"skor": a.get("skor"), "label": a.get("label"), "tren": a.get("tren"), "skor_beli": sb,
+                        "langkah": a.get("langkah"), "sikap": a.get("sikap"), "harga": a.get("harga"), "chg": a.get("chg"),
+                        "nilai20": a.get("nilai20"), "baru_n": a.get("baru_n"), "rsi": a.get("rsi"), "s1": a.get("s1"),
+                        "r1": a.get("r1"), "bendera": fl[:6]}
+        if b:
+            tanda = sorted(b["tanda"], key=lambda t: ("merah", "oranye", "hijau").index(t["level"]))
+            r["fund"] = {"ada": True, "kode": kode, **{k: v for k, v in b.items() if k != "tanda"},
+                         "tanda": [{"level": t["level"], "teks": t["en" if bahasa == "en" else "id"]} for t in tanda][:5],
+                         "waktu": F["waktu"], "harga_tanggal": F.get("harga_tanggal"), "url": F["url"],
+                         "fund_min": F["fund_min"], "beli_min": F["beli_min"]}
+        r["harga"] = (a or {}).get("harga") or (b or {}).get("harga")
+        r["grup"] = "tanpa_fund" if not b else _grup(b["skor"], (sb or {}).get("skor"), F)
+        baris.append(r)
+    baris.sort(key=lambda r: (GRUP_URUT[r["grup"]], -((r.get("fund") or {}).get("skor") or 0) - (((r.get("tek") or {}).get("skor_beli") or {}).get("skor") or 0)))
+    return {"ok": True, "ada": True, "baris": baris, "ambang": ambang_gabungan(), "url_fund": F["url"],
+            "fund": {"waktu": F["waktu"], "harga_tanggal": F.get("harga_tanggal"), "harga_waktu": F.get("harga_waktu"), "n": len(F["baris"])},
+            "tek": {"ada": bool(td), "waktu": td.get("waktu"), "tanggal_bursa": td.get("tanggal_bursa"), "lolos": td.get("lolos"), "basi": basi},
+            "status": T.get("status")}
+
+
+def _hari_bursa_tutup() -> str:
+    """Hari bursa terakhir yang sudah tutup (setelah ihsg_jam, bawaan 16:30 WIB). Libur bursa tidak dihitung."""
+    from datetime import timedelta, timezone as tz
+    now = datetime.now(tz(timedelta(hours=7)))
+    jj, mm = (int(x) for x in str(tk.muat_pengaturan().get("ihsg_jam") or "16:30").split(":")[:2])
+    d = now.date()
+    if d.weekday() < 5 and (now.hour, now.minute) < (jj, mm):
+        d -= timedelta(days=1)
+    while d.weekday() >= 5:
+        d -= timedelta(days=1)
+    return d.isoformat()
 
 
 def _grup(skor_fund, skor_beli, F: dict) -> str:
@@ -790,33 +855,6 @@ def _grup(skor_fund, skor_beli, F: dict) -> str:
         return "tanpa_tek"
     kuat, siap = skor_fund >= F["fund_min"], skor_beli >= F["beli_min"]
     return "kandidat" if kuat and siap else "pantau" if kuat else "trading" if siap else "lewati"
-
-
-def fund_ringkas(F: dict, kode, skor_beli, bahasa: str) -> dict | None:
-    b = F["baris"].get(str(kode or "").upper().replace(".JK", ""))
-    if not b:
-        return None
-    merah = [t for t in b["tanda"] if t["level"] == "merah"]
-    return {"skor": b["skor"], "label": b["label"], "kelas": b["kelas"], "mos": b["mos"], "vonis": b["vonis"],
-            "wajar": b["wajar"], "merah": [t["en" if bahasa == "en" else "id"] for t in merah][:3],
-            "grup": _grup(b["skor"], skor_beli, F)}
-
-
-def fund_untuk(code: str, skor_beli, bahasa: str) -> dict | None:
-    """Kotak Fundamental di Cek aset. None = program fundamental tidak ada; ada=False = emiten belum dinilai."""
-    F = baca_fundamental()
-    if not F.get("ada"):
-        return None
-    kode = str(code).upper().replace(".JK", "")
-    info = {"kode": kode, "waktu": F["waktu"], "harga_tanggal": F.get("harga_tanggal"), "url": F["url"],
-            "fund_min": F["fund_min"], "beli_min": F["beli_min"]}
-    b = F["baris"].get(kode)
-    if not b:
-        return {"ada": False, **info}
-    tanda = sorted(b["tanda"], key=lambda t: ("merah", "oranye", "hijau").index(t["level"]))
-    return {"ada": True, **info, **{k: v for k, v in b.items() if k != "tanda"},
-            "tanda": [{"level": t["level"], "teks": t["en" if bahasa == "en" else "id"]} for t in tanda][:5],
-            "grup": _grup(b["skor"], skor_beli, F)}
 
 
 def _jadwal_ihsg() -> None:
@@ -934,6 +972,8 @@ class Penangan(BaseHTTPRequestHandler):
                     st["ekstensi"] = json.loads((FOLDER / "ekstensi" / "manifest.json").read_text(encoding="utf-8")).get("version")
                 except (OSError, ValueError):
                     pass
+                if not self._dari_analisa():
+                    st["gabungan"] = bool(baca_fundamental().get("ada"))
                 if not self._dari_analisa():  # ekstensi & mode analisa tidak perlu tahu apa pun soal portofolio
                     try:
                         cfg = tk.muat_pengaturan()
@@ -949,6 +989,10 @@ class Penangan(BaseHTTPRequestHandler):
                 return self._json(riwayat(qs.get("q", ""), qs.get("tf", "1d"), qs.get("pasar"), bahasa))
             if u.path == "/api/ihsg":
                 return self._json(ihsg_data(bahasa) if qs.get("status") != "1" else {"ok": True, "status": ihsg_status(), "ringkas": ihsg_ringkas()})
+            if u.path == "/api/gabungan":
+                if self._dari_analisa():
+                    return self._kirim(403, b"tab Gabungan hanya di panel utama", "text/plain")
+                return self._json(gabungan_data(bahasa))
             if u.path == "/api/semua_tf":
                 return self._json(semua_tf(qs.get("q", ""), qs.get("pasar"), bahasa))
             if u.path in ("/api/portofolio", "/api/pindai") or u.path.startswith("/chart/"):
@@ -1003,6 +1047,13 @@ class Penangan(BaseHTTPRequestHandler):
             except (ValueError, json.JSONDecodeError):
                 return self._json({"ok": False, "pesan": "daftar tidak valid"}, 400)
             return self._json(atur_pantau(daftar))
+        if u.path == "/api/gabungan/ambang":
+            try:
+                n = min(int(self.headers.get("Content-Length") or 0), 2000)
+                isi = json.loads(self.rfile.read(n).decode("utf-8") or "{}")
+                return self._json({"ok": True, "ambang": atur_ambang(isi if isinstance(isi, dict) else {})})
+            except (ValueError, json.JSONDecodeError) as exc:
+                return self._json({"ok": False, "pesan": str(exc)}, 400)
         if u.path == "/api/ihsg/pindai":
             mulai = mulai_ihsg()
             time.sleep(0.05)
